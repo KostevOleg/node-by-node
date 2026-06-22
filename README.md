@@ -29,3 +29,29 @@ RabbitMQ UI is available at `http://localhost:15672`.
 ```bash
 yarn test
 ```
+
+## Code Quality
+
+Run ESLint and auto-fix issues:
+
+```bash
+yarn lint
+```
+
+Check ESLint without changing files:
+
+```bash
+yarn lint:check
+```
+
+Format source and test files with Prettier:
+
+```bash
+yarn format
+```
+
+Check Prettier formatting without changing files:
+
+```bash
+yarn format:check
+```
