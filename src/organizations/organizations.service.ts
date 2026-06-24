@@ -3,31 +3,38 @@ import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { OrganizationStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma-service';
+import { prismaErrorHandler } from '../common/utils/prisma-error.handler';
 
 @Injectable()
 export class OrganizationsService {
   constructor(private readonly prismaService: PrismaService) {}
   async create(data: CreateOrganizationDto) {
-    return this.prismaService.organization.create({
-      data,
-    });
+    return prismaErrorHandler(() =>
+      this.prismaService.organization.create({
+        data,
+      }),
+    );
   }
   async update(id: string, data: UpdateOrganizationDto) {
     await this.findById(id);
 
-    return this.prismaService.organization.update({
-      data,
-      where: { id },
-    });
+    return prismaErrorHandler(() =>
+      this.prismaService.organization.update({
+        data,
+        where: { id },
+      }),
+    );
   }
 
   async findById(id: string) {
-    const organization = await this.prismaService.organization.findFirst({
-      where: {
-        id,
-        deletedAt: null,
-      },
-    });
+    const organization = await prismaErrorHandler(() =>
+      this.prismaService.organization.findFirst({
+        where: {
+          id,
+          deletedAt: null,
+        },
+      }),
+    );
 
     if (!organization) {
       throw new NotFoundException('Organization not found');
@@ -37,25 +44,29 @@ export class OrganizationsService {
   }
 
   async getAll() {
-    return this.prismaService.organization.findMany({
-      where: {
-        deletedAt: null,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    return prismaErrorHandler(() =>
+      this.prismaService.organization.findMany({
+        where: {
+          deletedAt: null,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+    );
   }
 
   async delete(id: string) {
     await this.findById(id);
 
-    return this.prismaService.organization.update({
-      where: { id },
-      data: {
-        deletedAt: new Date(),
-        status: OrganizationStatus.ARCHIVED,
-      },
-    });
+    return prismaErrorHandler(() =>
+      this.prismaService.organization.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          status: OrganizationStatus.ARCHIVED,
+        },
+      }),
+    );
   }
 }
