@@ -45,6 +45,10 @@ export class SessionsService {
   async getAll() {
     return prismaErrorHandler(() =>
       this.prismaService.session.findMany({
+        where: {
+          status: SessionStatus.ACTIVE,
+          revokedAt: null,
+        },
         orderBy: {
           createdAt: 'desc',
         },

@@ -71,6 +71,10 @@ describe('SessionsService', () => {
 
     await expect(service.getAll()).resolves.toEqual([session]);
     expect(prismaService.session.findMany).toHaveBeenCalledWith({
+      where: {
+        status: SessionStatus.ACTIVE,
+        revokedAt: null,
+      },
       orderBy: {
         createdAt: 'desc',
       },
