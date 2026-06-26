@@ -9,6 +9,7 @@ WORKDIR /app
 RUN corepack enable
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN yarn prisma:generate
 RUN yarn build
 
 FROM node:22-alpine AS production

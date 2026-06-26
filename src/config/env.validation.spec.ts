@@ -10,6 +10,7 @@ describe('env validation schema', () => {
     POSTGRES_USER: 'postgres',
     POSTGRES_PASSWORD: 'postgres',
     POSTGRES_DB: 'node_by_node',
+    DATABASE_URL: 'postgresql://postgres:postgres@postgres:5432/node_by_node',
     REDIS_HOST: 'redis',
     REDIS_PORT: 6379,
     RABBITMQ_URL: 'amqp://rabbitmq:5672',

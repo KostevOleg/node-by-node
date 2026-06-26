@@ -6,10 +6,25 @@ Create `.env` from `.env.example`, then run:
 
 ```bash
 yarn install
+yarn prisma:generate
 yarn start:dev
 ```
 
 Application URL: `http://localhost:3000`
+
+## Database Migrations
+
+Set `DATABASE_URL` in `.env`, then run:
+
+```bash
+yarn prisma:migrate
+```
+
+For Docker/production-style startup, apply existing migrations with:
+
+```bash
+yarn prisma:deploy
+```
 
 ## How to Start Docker Services
 
