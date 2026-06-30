@@ -10,6 +10,7 @@ export const validationSchema = Joi.object({
   POSTGRES_USER: Joi.string().required(),
   POSTGRES_PASSWORD: Joi.string().required(),
   POSTGRES_DB: Joi.string().required(),
+  DATABASE_URL: Joi.string().uri().required(),
   REDIS_HOST: Joi.string().required(),
   REDIS_PORT: Joi.number().port().required(),
   RABBITMQ_URL: Joi.string().uri().required(),
