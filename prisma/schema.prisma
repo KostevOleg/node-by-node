@@ -71,6 +71,7 @@ model User {
   @@index([status])
   @@index([deletedAt])
   @@index([createdAt])
+  @@index([organizationId, deletedAt, createdAt])
 }
 
 model Session {
@@ -92,6 +93,7 @@ model Session {
   @@index([expiresAt])
   @@index([revokedAt])
   @@index([createdAt])
+  @@index([status, revokedAt, createdAt])
 }
 
 model Conversation {
@@ -110,6 +112,7 @@ model Conversation {
   @@index([status])
   @@index([deletedAt])
   @@index([createdAt])
+  @@index([userId, deletedAt, createdAt])
 }
 
 model Message {
@@ -130,6 +133,7 @@ model Message {
   @@index([status])
   @@index([deletedAt])
   @@index([createdAt])
+  @@index([conversationId, deletedAt, createdAt])
 }
 
 model Role {

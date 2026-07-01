@@ -32,10 +32,10 @@ Index Scan using "User_email_key" on "User"  (cost=0.28..8.29 rows=1 width=114) 
 
 #### Observations
 
-- PostgreSQL used the unique index on the `email` column (`User_email_key`).
-- The query was executed using an `Index Scan`.
-- A filter (`deletedAt IS NULL`) was applied after the index lookup.
-- No sorting operation was required.
+- PostgreSQL used the unique `email` index (`User_email_key`).
+- This is good because the database did not scan the whole `User` table.
+- `deletedAt IS NULL` was checked after the email lookup.
+- There was no sort in this query.
 - Execution time: 0.126 ms.
 
 ### 2. List Organization Users
@@ -62,10 +62,11 @@ LIMIT 50;
 
 #### Observations
 
-- PostgreSQL used a backward index scan on the `createdAt` index to satisfy the `ORDER BY createdAt DESC` clause.
-- The `organizationId` and `deletedAt` conditions were applied as filters after reading rows from the index.
-- 451 rows were removed by the filter before returning the requested 50 rows.
-- No explicit sort operation was required because the index already provided the required order.
+- PostgreSQL used the `createdAt` index in reverse order for `ORDER BY createdAt DESC`.
+- This avoided a separate sort step.
+- The `organizationId` and `deletedAt` filters were applied after reading rows from the index.
+- PostgreSQL removed 451 rows by filter before returning 50 rows.
+- This query can probably be improved with a composite index.
 - Execution time: 0.544 ms.
 
 ### 3. List User Conversations
@@ -98,11 +99,11 @@ LIMIT 50;
 
 #### Observations
 
-- PostgreSQL used the `Conversation_userId_idx` index to locate conversations for the specified user.
-- A `Bitmap Heap Scan` was used to retrieve the matching rows from the table.
-- The query performed an in-memory `Sort` (`quicksort`) on `createdAt DESC` because the index does not provide the required ordering.
-- The `deletedAt IS NULL` condition was applied as a filter.
-- No rows were removed by the filter.
+- PostgreSQL used the `Conversation_userId_idx` index to find conversations by user.
+- After finding the rows, PostgreSQL still had to sort them by `createdAt DESC`.
+- The sort was small because this test user has only 5 conversations.
+- `deletedAt IS NULL` was applied as a filter.
+- This query can be improved with an index that includes both `userId` and `createdAt`.
 - Execution time: 0.191 ms.
 
 ### 4. List Conversation Messages
@@ -135,11 +136,11 @@ Sort  (cost=41.57..41.59 rows=10 width=121) (actual time=0.054..0.055 rows=10 lo
 
 #### Observations
 
-- PostgreSQL used the `Message_conversationId_idx` index to find messages for the specified conversation.
-- A `Bitmap Heap Scan` was used to retrieve the matching rows from the table.
-- The query performed an in-memory `Sort` (`quicksort`) on `createdAt` because the index does not provide the required ordering.
-- The `deletedAt IS NULL` condition was applied as a filter.
-- No rows were removed by the filter.
+- PostgreSQL used the `Message_conversationId_idx` index to find messages by conversation.
+- After finding the rows, PostgreSQL still had to sort them by `createdAt`.
+- The sort was small because this conversation has only 10 messages.
+- `deletedAt IS NULL` was applied as a filter.
+- This query can be improved with an index that includes both `conversationId` and `createdAt`.
 - Execution time: 0.176 ms.
 
 ### 5. List Active Sessions
@@ -165,15 +166,113 @@ LIMIT 50;
 
 #### Observations
 
-- PostgreSQL used a backward index scan on the `Session_createdAt_idx` index to satisfy the `ORDER BY createdAt DESC` clause.
-- The `status` and `revokedAt` conditions were applied as filters after reading rows from the index.
-- No explicit sort operation was required because the index already returned rows in the correct order.
-- No rows were removed by the filter.
+- PostgreSQL used the `createdAt` index in reverse order for `ORDER BY createdAt DESC`.
+- This avoided a separate sort step.
+- The `status` and `revokedAt` filters were applied after reading rows from the index.
+- This is fine for the current data, but it may get worse if there are many expired or revoked sessions.
+- This query can probably be improved with a composite index for active sessions.
 - Execution time: 0.234 ms.
 
 ## Initial Observations
 
-- Point lookups by unique fields are already efficient. `Find User by Email` uses the unique `User_email_key` index and has no obvious bottleneck.
-- Queries that filter by a foreign key and order by `createdAt` are partially optimized, but not perfectly. `List User Conversations` and `List Conversation Messages` use foreign-key indexes, then perform an additional in-memory sort.
-- `List Organization Users` and `List Active Sessions` avoid explicit sorting by scanning `createdAt` indexes backward, but filtering happens after rows are read from the index. This is visible in `Rows Removed by Filter` for organization users.
-- Good candidates for follow-up optimization are composite indexes that combine the filtering columns with `createdAt`, for example indexes shaped around `organizationId + deletedAt + createdAt`, `userId + deletedAt + createdAt`, `conversationId + deletedAt + createdAt`, and `status + revokedAt + createdAt`.
+- The email lookup is already fast because it uses a unique index.
+- Some list queries use an index, but still need extra filtering or sorting.
+- `List Organization Users` is the clearest place for improvement because PostgreSQL removed 451 rows by filter.
+- `List User Conversations` and `List Conversation Messages` could be improved by indexes that also support ordering by `createdAt`.
+- Good index candidates for the next task are:
+  - `User(organizationId, deletedAt, createdAt)`
+  - `Conversation(userId, deletedAt, createdAt)`
+  - `Message(conversationId, deletedAt, createdAt)`
+  - `Session(status, revokedAt, createdAt)`
+
+## Added Indexes
+
+- `User(organizationId, deletedAt, createdAt)`
+- `Conversation(userId, deletedAt, createdAt)`
+- `Message(conversationId, deletedAt, createdAt)`
+- `Session(status, revokedAt, createdAt)`
+
+## Optimized Queries
+
+### 1. Find User by Email
+
+```text
+Index Scan using "User_email_key" on "User"  (cost=0.28..8.29 rows=1 width=114) (actual time=0.055..0.056 rows=1 loops=1)
+   Index Cond: ((email)::text = 'user-1@example.com'::text)
+   Filter: ("deletedAt" IS NULL)
+ Planning Time: 0.145 ms
+ Execution Time: 0.114 ms
+```
+
+### 2. List Organization Users
+
+```text
+ Limit  (cost=0.15..23.90 rows=50 width=114) (actual time=0.048..0.210 rows=50 loops=1)
+   ->  Index Scan Backward using "User_createdAt_idx" on "User"  (cost=0.15..47.65 rows=100 width=114) (actual time=0.047..0.191 rows=50 loops=1)
+         Filter: (("deletedAt" IS NULL) AND ("organizationId" = 'cedee361-ac82-4498-98d0-4c6476a9a2a9'::uuid))
+         Rows Removed by Filter: 451
+ Planning Time: 0.150 ms
+ Execution Time: 0.264 ms
+```
+
+### 3. List User Conversations
+
+```text
+Limit  (cost=20.62..20.63 rows=5 width=103) (actual time=0.060..0.063 rows=5 loops=1)
+   ->  Sort  (cost=20.62..20.63 rows=5 width=103) (actual time=0.058..0.060 rows=5 loops=1)
+         Sort Key: "createdAt" DESC
+         Sort Method: quicksort  Memory: 25kB
+         ->  Bitmap Heap Scan on "Conversation"  (cost=4.32..20.56 rows=5 width=103) (actual time=0.032..0.035 rows=5 loops=1)
+               Recheck Cond: ("userId" = 'e3357812-d880-4c40-8c71-9afd2cd1ea73'::uuid)
+               Filter: ("deletedAt" IS NULL)
+               Heap Blocks: exact=1
+               ->  Bitmap Index Scan on "Conversation_userId_idx"  (cost=0.00..4.32 rows=5 width=0) (actual time=0.018..0.018 rows=5 loops=1)
+                     Index Cond: ("userId" = 'e3357812-d880-4c40-8c71-9afd2cd1ea73'::uuid)
+ Planning Time: 0.303 ms
+ Execution Time: 0.173 ms
+```
+
+### 4. List Conversation Messages
+
+```text
+Limit  (cost=41.57..41.59 rows=10 width=121) (actual time=0.081..0.084 rows=10 loops=1)
+   ->  Sort  (cost=41.57..41.59 rows=10 width=121) (actual time=0.054..0.055 rows=10 loops=1)
+         Sort Key: "createdAt"
+         Sort Method: quicksort  Memory: 27kB
+         ->  Bitmap Heap Scan on "Message"  (cost=4.37..41.40 rows=10 width=121) (actual time=0.029..0.033 rows=10 loops=1)
+               Recheck Cond: ("conversationId" = 'c5e012d6-09cf-4c6e-b60d-150601aac774'::uuid)
+               Filter: ("deletedAt" IS NULL)
+               Heap Blocks: exact=1
+               ->  Bitmap Index Scan on "Message_conversationId_idx"  (cost=0.00..4.37 rows=10 width=0) (actual time=0.017..0.017 rows=10 loops=1)
+                     Index Cond: ("conversationId" = 'c5e012d6-09cf-4c6e-b60d-150601aac774'::uuid)
+ Planning Time: 0.150 ms
+ Execution Time: 0.185 ms
+```
+
+### 5. List Active Sessions
+
+```text
+ Limit  (cost=0.15..2.75 rows=50 width=146) (actual time=0.083..0.110 rows=50 loops=1)
+   ->  Index Scan Backward using "Session_createdAt_idx" on "Session"  (cost=0.15..46.90 rows=900 width=146) (actual time=0.082..0.103 rows=50 loops=1)
+         Filter: (("revokedAt" IS NULL) AND (status = 'ACTIVE'::"SessionStatus"))
+ Planning Time: 0.157 ms
+ Execution Time: 0.170 ms
+```
+
+## Before / After Summary
+
+| Query                      | Before  | After   | Measured Result |
+| -------------------------- | ------- | ------- | --------------- |
+| Find User by Email         | 0.126ms | 0.114ms | Slightly faster |
+| List Organization Users    | 0.544ms | 0.264ms | >50% faster     |
+| List User Conversations    | 0.191ms | 0.173ms | Slightly faster |
+| List Conversation Messages | 0.176ms | 0.185ms | About the same  |
+| List Active Sessions       | 0.234ms | 0.170ms | Faster          |
+
+## Optimization Observations
+
+- The measured time for `List Organization Users` changed from 0.544ms to 0.264ms, which is more than 50% faster in this run.
+- The query plans show that PostgreSQL mostly continued using the existing indexes, for example `User_createdAt_idx`, `Conversation_userId_idx`, `Message_conversationId_idx`, and `Session_createdAt_idx`.
+- Because the dataset is small and the queries were executed multiple times, the measured improvements can be affected by cache warm-up and normal timing noise.
+- `List Conversation Messages` stayed about the same. The query still used `Message_conversationId_idx`, and sorting only 10 messages is already cheap.
+- The new composite indexes are still useful for the intended query patterns, but they are expected to help more when each user or conversation has more related rows.
