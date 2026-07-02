@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { OrganizationStatus } from '@prisma/client';
+import { OrganizationStatus, SessionStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { prismaErrorHandler } from '../common/utils/prisma-error.handler';
 
@@ -66,6 +66,53 @@ export class OrganizationsService {
           deletedAt: new Date(),
           status: OrganizationStatus.ARCHIVED,
         },
+      }),
+    );
+  }
+
+  async deleteWithUsersAndSessions(id: string) {
+    await this.findById(id);
+
+    return prismaErrorHandler(() =>
+      this.prismaService.$transaction(async (tx) => {
+        const deletedAt = new Date();
+
+        const sessions = await tx.session.updateMany({
+          where: {
+            user: {
+              organizationId: id,
+            },
+            revokedAt: null,
+          },
+          data: {
+            status: SessionStatus.REVOKED,
+            revokedAt: deletedAt,
+          },
+        });
+
+        const users = await tx.user.updateMany({
+          where: {
+            organizationId: id,
+            deletedAt: null,
+          },
+          data: {
+            deletedAt,
+          },
+        });
+
+        const organization = await tx.organization.update({
+          where: { id },
+          data: {
+            deletedAt,
+            status: OrganizationStatus.ARCHIVED,
+          },
+        });
+
+        return {
+          organization,
+          users,
+          sessions,
+        };
       }),
     );
   }

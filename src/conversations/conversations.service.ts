@@ -1,5 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ConversationStatus } from '@prisma/client';
+import {
+  ConversationStatus,
+  MessageSender,
+  MessageStatus,
+} from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
@@ -13,6 +17,43 @@ export class ConversationsService {
     return prismaErrorHandler(() =>
       this.prismaService.conversation.create({
         data,
+      }),
+    );
+  }
+
+  async createWithFirstMessage(data: {
+    userId: string;
+    title: string;
+    message: {
+      sender: MessageSender;
+      content: string;
+      tokenCount: number;
+      status?: MessageStatus;
+    };
+  }) {
+    return prismaErrorHandler(() =>
+      this.prismaService.$transaction(async (tx) => {
+        const conversation = await tx.conversation.create({
+          data: {
+            userId: data.userId,
+            title: data.title,
+          },
+        });
+
+        const message = await tx.message.create({
+          data: {
+            conversationId: conversation.id,
+            sender: data.message.sender,
+            content: data.message.content,
+            tokenCount: data.message.tokenCount,
+            status: data.message.status,
+          },
+        });
+
+        return {
+          conversation,
+          message,
+        };
       }),
     );
   }
@@ -82,9 +123,7 @@ export class ConversationsService {
     );
 
     const hasNextPage = conversations.length > pageSize;
-    const data = hasNextPage
-      ? conversations.slice(0, pageSize)
-      : conversations;
+    const data = hasNextPage ? conversations.slice(0, pageSize) : conversations;
     const nextCursor = hasNextPage ? data[data.length - 1].id : null;
 
     return {
@@ -118,9 +157,7 @@ export class ConversationsService {
     );
 
     const hasNextPage = conversations.length > pageSize;
-    const data = hasNextPage
-      ? conversations.slice(0, pageSize)
-      : conversations;
+    const data = hasNextPage ? conversations.slice(0, pageSize) : conversations;
     const nextCursor = hasNextPage ? data[data.length - 1].id : null;
 
     return {

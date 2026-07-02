@@ -297,14 +297,14 @@ Each method uses:
 
 ### Methods
 
-| Service | Method | Main filter | Order |
-| ------- | ------ | ----------- | ----- |
-| `UsersService` | `getUsersPage(cursor, take)` | `deletedAt: null` | `createdAt DESC` |
-| `UsersService` | `getOrganizationUsersPage(organizationId, cursor, take)` | `organizationId`, `deletedAt: null` | `createdAt DESC` |
-| `ConversationsService` | `getConversationsPage(cursor, take)` | `deletedAt: null` | `createdAt DESC` |
-| `ConversationsService` | `getUserConversationsPage(userId, cursor, take)` | `userId`, `deletedAt: null` | `createdAt DESC` |
-| `MessagesService` | `getMessagesPage(cursor, take)` | `deletedAt: null` | `createdAt DESC` |
-| `MessagesService` | `getConversationMessagesPage(conversationId, cursor, take)` | `conversationId`, `deletedAt: null` | `createdAt ASC` |
+| Service                | Method                                                      | Main filter                         | Order            |
+| ---------------------- | ----------------------------------------------------------- | ----------------------------------- | ---------------- |
+| `UsersService`         | `getUsersPage(cursor, take)`                                | `deletedAt: null`                   | `createdAt DESC` |
+| `UsersService`         | `getOrganizationUsersPage(organizationId, cursor, take)`    | `organizationId`, `deletedAt: null` | `createdAt DESC` |
+| `ConversationsService` | `getConversationsPage(cursor, take)`                        | `deletedAt: null`                   | `createdAt DESC` |
+| `ConversationsService` | `getUserConversationsPage(userId, cursor, take)`            | `userId`, `deletedAt: null`         | `createdAt DESC` |
+| `MessagesService`      | `getMessagesPage(cursor, take)`                             | `deletedAt: null`                   | `createdAt DESC` |
+| `MessagesService`      | `getConversationMessagesPage(conversationId, cursor, take)` | `conversationId`, `deletedAt: null` | `createdAt ASC`  |
 
 Each pagination method returns the same shape:
 
@@ -336,7 +336,11 @@ Scoped pagination uses the same pattern with a parent id:
 ```ts
 await usersService.getOrganizationUsersPage(organizationId, undefined, 50);
 await conversationsService.getUserConversationsPage(userId, undefined, 50);
-await messagesService.getConversationMessagesPage(conversationId, undefined, 50);
+await messagesService.getConversationMessagesPage(
+  conversationId,
+  undefined,
+  50,
+);
 ```
 
 ### Validation
@@ -350,3 +354,32 @@ Project tests and TypeScript build pass after adding these pagination methods:
 yarn.cmd test
 yarn.cmd build
 ```
+
+## Transactions
+
+Two transactional service methods were added with Prisma `$transaction()`.
+
+### Create Conversation With First Message
+
+`ConversationsService.createWithFirstMessage()` creates a conversation and its
+first message in one transaction.
+
+This needs a transaction because the application should not create an empty
+conversation if creating the first message fails. Prisma commits the transaction
+only after both `tx.conversation.create()` and `tx.message.create()` succeed. If
+the message creation throws, Prisma rolls back the created conversation.
+
+### Delete Organization With Users And Sessions
+
+`OrganizationsService.deleteWithUsersAndSessions()` archives an organization,
+soft-deletes its users, and revokes related sessions in one transaction.
+
+This needs a transaction because organization deletion should not leave users or
+sessions in a partially updated state. If updating users or sessions fails, the
+organization update is rolled back together with the rest of the transaction.
+
+### Rollback Demonstration
+
+Rollback behavior is covered in unit tests by forcing an error inside the
+transaction callback. The tests verify that the service rejects and that later
+transaction steps are not completed after the failure.

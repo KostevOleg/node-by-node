@@ -46,8 +46,8 @@ conversations, and messages for performance testing.
 
 ## Performance Documentation
 
-Database query analysis, added indexes, and cursor pagination notes are
-documented in `docs/query-analysis.md`.
+Database query analysis, added indexes, cursor pagination, and transaction notes
+are documented in `docs/query-analysis.md`.
 
 ## How to Start Docker Services
 
