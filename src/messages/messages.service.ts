@@ -57,6 +57,77 @@ export class MessagesService {
     );
   }
 
+  async getMessagesPage(cursor?: string, take = 50) {
+    const pageSize = Math.min(Math.max(take, 1), 100);
+
+    const messages = await prismaErrorHandler(() =>
+      this.prismaService.message.findMany({
+        where: {
+          deletedAt: null,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: pageSize + 1,
+        ...(cursor
+          ? {
+              cursor: {
+                id: cursor,
+              },
+              skip: 1,
+            }
+          : {}),
+      }),
+    );
+
+    const hasNextPage = messages.length > pageSize;
+    const data = hasNextPage ? messages.slice(0, pageSize) : messages;
+    const nextCursor = hasNextPage ? data[data.length - 1].id : null;
+
+    return {
+      data,
+      nextCursor,
+    };
+  }
+
+  async getConversationMessagesPage(
+    conversationId: string,
+    cursor?: string,
+    take = 50,
+  ) {
+    const pageSize = Math.min(Math.max(take, 1), 100);
+
+    const messages = await prismaErrorHandler(() =>
+      this.prismaService.message.findMany({
+        where: {
+          conversationId,
+          deletedAt: null,
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+        take: pageSize + 1,
+        ...(cursor
+          ? {
+              cursor: {
+                id: cursor,
+              },
+              skip: 1,
+            }
+          : {}),
+      }),
+    );
+
+    const hasNextPage = messages.length > pageSize;
+    const data = hasNextPage ? messages.slice(0, pageSize) : messages;
+    const nextCursor = hasNextPage ? data[data.length - 1].id : null;
+
+    return {
+      data,
+      nextCursor,
+    };
+  }
+
   async delete(id: string) {
     await this.findById(id);
 

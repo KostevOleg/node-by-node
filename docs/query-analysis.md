@@ -276,3 +276,77 @@ Limit  (cost=41.57..41.59 rows=10 width=121) (actual time=0.081..0.084 rows=10 l
 - Because the dataset is small and the queries were executed multiple times, the measured improvements can be affected by cache warm-up and normal timing noise.
 - `List Conversation Messages` stayed about the same. The query still used `Message_conversationId_idx`, and sorting only 10 messages is already cheap.
 - The new composite indexes are still useful for the intended query patterns, but they are expected to help more when each user or conversation has more related rows.
+
+## Cursor-Based Pagination
+
+Cursor-based pagination was added for the main large list queries in the
+application. The implementation is placed in service methods because the task
+requires pagination service methods.
+
+`LIMIT/OFFSET` pagination works by skipping a number of rows before returning
+the requested page. This becomes slower as the offset grows because PostgreSQL
+still has to walk through the skipped rows. Cursor pagination uses the last item
+from the previous page as the starting point for the next page. The client sends
+that id as `cursor`, and Prisma starts the next query after that row.
+
+Each method uses:
+
+- `cursor: { id: cursor }` when a cursor is provided
+- `skip: 1` to avoid returning the cursor record again
+- `take + 1` to check whether another page exists
+
+### Methods
+
+| Service | Method | Main filter | Order |
+| ------- | ------ | ----------- | ----- |
+| `UsersService` | `getUsersPage(cursor, take)` | `deletedAt: null` | `createdAt DESC` |
+| `UsersService` | `getOrganizationUsersPage(organizationId, cursor, take)` | `organizationId`, `deletedAt: null` | `createdAt DESC` |
+| `ConversationsService` | `getConversationsPage(cursor, take)` | `deletedAt: null` | `createdAt DESC` |
+| `ConversationsService` | `getUserConversationsPage(userId, cursor, take)` | `userId`, `deletedAt: null` | `createdAt DESC` |
+| `MessagesService` | `getMessagesPage(cursor, take)` | `deletedAt: null` | `createdAt DESC` |
+| `MessagesService` | `getConversationMessagesPage(conversationId, cursor, take)` | `conversationId`, `deletedAt: null` | `createdAt ASC` |
+
+Each pagination method returns the same shape:
+
+```ts
+{
+  data: items,
+  nextCursor: lastItemIdOrNull,
+}
+```
+
+When `nextCursor` is `null`, there are no more pages.
+
+### Example Usage
+
+First page:
+
+```ts
+await usersService.getUsersPage(undefined, 50);
+```
+
+Next page:
+
+```ts
+await usersService.getUsersPage(lastUserId, 50);
+```
+
+Scoped pagination uses the same pattern with a parent id:
+
+```ts
+await usersService.getOrganizationUsersPage(organizationId, undefined, 50);
+await conversationsService.getUserConversationsPage(userId, undefined, 50);
+await messagesService.getConversationMessagesPage(conversationId, undefined, 50);
+```
+
+### Validation
+
+The page size is clamped between 1 and 100 records inside the service methods,
+so a client cannot request an unexpectedly large page.
+
+Project tests and TypeScript build pass after adding these pagination methods:
+
+```bash
+yarn.cmd test
+yarn.cmd build
+```

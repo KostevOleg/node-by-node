@@ -81,6 +81,57 @@ describe('ConversationsService', () => {
     });
   });
 
+  it('should get a conversations page', async () => {
+    const secondConversation = {
+      ...conversation,
+      id: 'second-conversation-id',
+    };
+
+    prismaService.conversation.findMany.mockResolvedValue([
+      conversation,
+      secondConversation,
+    ]);
+
+    await expect(service.getConversationsPage(undefined, 1)).resolves.toEqual({
+      data: [conversation],
+      nextCursor: 'conversation-id',
+    });
+    expect(prismaService.conversation.findMany).toHaveBeenCalledWith({
+      where: {
+        deletedAt: null,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 2,
+    });
+  });
+
+  it('should get a user conversations page with cursor', async () => {
+    prismaService.conversation.findMany.mockResolvedValue([conversation]);
+
+    await expect(
+      service.getUserConversationsPage('user-id', 'cursor-id', 10),
+    ).resolves.toEqual({
+      data: [conversation],
+      nextCursor: null,
+    });
+    expect(prismaService.conversation.findMany).toHaveBeenCalledWith({
+      where: {
+        userId: 'user-id',
+        deletedAt: null,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 11,
+      cursor: {
+        id: 'cursor-id',
+      },
+      skip: 1,
+    });
+  });
+
   it('should update a conversation', async () => {
     const data = {
       title: 'Updated chat',

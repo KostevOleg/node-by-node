@@ -83,6 +83,55 @@ describe('UsersService', () => {
     });
   });
 
+  it('should get a users page', async () => {
+    const secondUser = {
+      ...user,
+      id: 'second-user-id',
+      email: 'second@example.com',
+    };
+
+    prismaService.user.findMany.mockResolvedValue([user, secondUser]);
+
+    await expect(service.getUsersPage(undefined, 1)).resolves.toEqual({
+      data: [user],
+      nextCursor: 'user-id',
+    });
+    expect(prismaService.user.findMany).toHaveBeenCalledWith({
+      where: {
+        deletedAt: null,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 2,
+    });
+  });
+
+  it('should get an organization users page with cursor', async () => {
+    prismaService.user.findMany.mockResolvedValue([user]);
+
+    await expect(
+      service.getOrganizationUsersPage('organization-id', 'cursor-id', 10),
+    ).resolves.toEqual({
+      data: [user],
+      nextCursor: null,
+    });
+    expect(prismaService.user.findMany).toHaveBeenCalledWith({
+      where: {
+        organizationId: 'organization-id',
+        deletedAt: null,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 11,
+      cursor: {
+        id: 'cursor-id',
+      },
+      skip: 1,
+    });
+  });
+
   it('should update a user', async () => {
     const data = {
       firstName: 'Updated',
