@@ -107,9 +107,7 @@ export class ConversationsService {
         where: {
           deletedAt: null,
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: pageSize + 1,
         ...(cursor
           ? {
@@ -141,9 +139,7 @@ export class ConversationsService {
           userId,
           deletedAt: null,
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: pageSize + 1,
         ...(cursor
           ? {

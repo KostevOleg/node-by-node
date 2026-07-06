@@ -188,6 +188,7 @@ LIMIT 50;
 ## Added Indexes
 
 - `User(organizationId, deletedAt, createdAt)`
+- Partial index: `User(organizationId, createdAt DESC, id DESC) WHERE deletedAt IS NULL`
 - `Conversation(userId, deletedAt, createdAt)`
 - `Message(conversationId, deletedAt, createdAt)`
 - `Session(status, revokedAt, createdAt)`
@@ -259,23 +260,95 @@ Limit  (cost=41.57..41.59 rows=10 width=121) (actual time=0.081..0.084 rows=10 l
  Execution Time: 0.170 ms
 ```
 
+## Post-ANALYZE Verification
+
+After applying migrations and seeding the database, `ANALYZE` was run before
+re-checking the query plans:
+
+```sql
+ANALYZE;
+```
+
+The seeded dataset used for this verification contains:
+
+| Table           | Rows   |
+| --------------- | ------ |
+| `User`          | 1,000  |
+| `Conversation`  | 5,000  |
+| `Message`       | 50,000 |
+| `Session`       | 900    |
+
+### Planner Choices After ANALYZE
+
+| Query                      | Index chosen after `ANALYZE`       | New index chosen? |
+| -------------------------- | ---------------------------------- | ----------------- |
+| Find User by Email         | `User_email_key`                   | Not applicable    |
+| List Organization Users    | `User_organizationId_idx`          | No                |
+| List User Conversations    | `Conversation_userId_idx`          | No                |
+| List Conversation Messages | `Message_conversationId_idx`       | No                |
+| List Active Sessions       | `Session_createdAt_idx`            | No                |
+
+The composite and partial indexes were created and the migrations are applied,
+but PostgreSQL did not choose them for these specific plans after `ANALYZE`.
+
+For organization-scoped user pagination, the partial index
+`User_organizationId_createdAt_id_active_idx` matches the application query:
+it filters by `organizationId`, only contains rows where `deletedAt IS NULL`,
+and stores rows in the same order used by cursor pagination
+(`createdAt DESC, id DESC`). On the current seeded dataset, PostgreSQL still
+chose `User_organizationId_idx` and sorted about 100 rows in memory. This is
+reasonable because the table has only 1,000 users, each organization has about
+100 users, and almost all rows are active.
+
+When index usage was forced for verification, PostgreSQL was able to use the
+partial index:
+
+```text
+Index Scan using "User_organizationId_createdAt_id_active_idx" on "User"
+  Index Cond: ("organizationId" = ...)
+```
+
+This confirms the index is valid for the query pattern, even though the planner
+does not prefer it on the small seed dataset.
+
+For `Conversation(userId, deletedAt, createdAt)`, each seeded user has only a
+small number of conversations. PostgreSQL chose `Conversation_userId_idx` and a
+small in-memory sort because sorting about five rows is cheaper than using the
+larger composite index.
+
+For `Message(conversationId, deletedAt, createdAt)`, each seeded conversation
+has about ten messages. PostgreSQL chose `Message_conversationId_idx` and a
+small in-memory sort because the result set is already tiny.
+
+For `Session(status, revokedAt, createdAt)`, most seeded sessions match
+`status = 'ACTIVE'` and `revokedAt IS NULL`, so those predicates are not very
+selective in this dataset. PostgreSQL chose `Session_createdAt_idx` because it
+can satisfy `ORDER BY createdAt DESC LIMIT 50` cheaply.
+
+The conclusion is that the added indexes are correctly defined for the intended
+scoped query patterns, but the current seeded data is small and evenly
+distributed. The planner therefore prefers existing single-column indexes and
+small sorts for these examples. The composite and partial indexes should become
+more valuable when parent records have many more related rows or when
+soft-deleted rows become a larger share of the table.
+
 ## Before / After Summary
 
 | Query                      | Before  | After   | Measured Result |
 | -------------------------- | ------- | ------- | --------------- |
 | Find User by Email         | 0.126ms | 0.114ms | Slightly faster |
-| List Organization Users    | 0.544ms | 0.264ms | >50% faster     |
+| List Organization Users    | 0.544ms | 0.319ms | Faster          |
 | List User Conversations    | 0.191ms | 0.173ms | Slightly faster |
 | List Conversation Messages | 0.176ms | 0.185ms | About the same  |
 | List Active Sessions       | 0.234ms | 0.170ms | Faster          |
 
 ## Optimization Observations
 
-- The measured time for `List Organization Users` changed from 0.544ms to 0.264ms, which is more than 50% faster in this run.
-- The query plans show that PostgreSQL mostly continued using the existing indexes, for example `User_createdAt_idx`, `Conversation_userId_idx`, `Message_conversationId_idx`, and `Session_createdAt_idx`.
+- The measured time for `List Organization Users` changed from 0.544ms to 0.319ms in the latest run, but the planner still did not choose the new partial index automatically.
+- The query plans show that PostgreSQL mostly continued using existing indexes, for example `User_organizationId_idx`, `Conversation_userId_idx`, `Message_conversationId_idx`, and `Session_createdAt_idx`.
 - Because the dataset is small and the queries were executed multiple times, the measured improvements can be affected by cache warm-up and normal timing noise.
 - `List Conversation Messages` stayed about the same. The query still used `Message_conversationId_idx`, and sorting only 10 messages is already cheap.
-- The new composite indexes are still useful for the intended query patterns, but they are expected to help more when each user or conversation has more related rows.
+- The new composite and partial indexes are still useful for the intended query patterns, but they are expected to help more when each organization, user, or conversation has more related rows, or when there are more soft-deleted records.
 
 ## Cursor-Based Pagination
 

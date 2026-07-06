@@ -193,9 +193,7 @@ describe('ConversationsService', () => {
       where: {
         deletedAt: null,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 2,
     });
   });
@@ -214,9 +212,7 @@ describe('ConversationsService', () => {
         userId: 'user-id',
         deletedAt: null,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 11,
       cursor: {
         id: 'cursor-id',

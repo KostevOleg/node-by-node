@@ -100,9 +100,7 @@ describe('UsersService', () => {
       where: {
         deletedAt: null,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 2,
     });
   });
@@ -121,9 +119,7 @@ describe('UsersService', () => {
         organizationId: 'organization-id',
         deletedAt: null,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 11,
       cursor: {
         id: 'cursor-id',
@@ -167,5 +163,24 @@ describe('UsersService', () => {
         deletedAt: expect.any(Date) as Date,
       },
     });
+  });
+  it('should find a user by email', async () => {
+    prismaService.user.findFirst.mockResolvedValue(user);
+
+    await expect(service.findByEmail('user@example.com')).resolves.toEqual(user);
+    expect(prismaService.user.findFirst).toHaveBeenCalledWith({
+      where: {
+        email: 'user@example.com',
+        deletedAt: null,
+      },
+    });
+  });
+
+  it('should throw NotFoundException when user is not found by email', async () => {
+    prismaService.user.findFirst.mockResolvedValue(null);
+
+    await expect(service.findByEmail('missing@example.com')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });

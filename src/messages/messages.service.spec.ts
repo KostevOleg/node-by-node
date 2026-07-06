@@ -97,9 +97,7 @@ describe('MessagesService', () => {
       where: {
         deletedAt: null,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 2,
     });
   });
@@ -118,9 +116,7 @@ describe('MessagesService', () => {
         conversationId: 'conversation-id',
         deletedAt: null,
       },
-      orderBy: {
-        createdAt: 'asc',
-      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take: 11,
       cursor: {
         id: 'cursor-id',

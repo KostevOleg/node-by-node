@@ -61,9 +61,7 @@ export class UsersService {
         where: {
           deletedAt: null,
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: pageSize + 1,
         ...(cursor
           ? {
@@ -112,9 +110,7 @@ export class UsersService {
           organizationId,
           deletedAt: null,
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: pageSize + 1,
         ...(cursor
           ? {
@@ -135,5 +131,21 @@ export class UsersService {
       data,
       nextCursor,
     };
+  }
+  async findByEmail(email: string) {
+    const user = await prismaErrorHandler(() =>
+      this.prismaService.user.findFirst({
+        where: {
+          email,
+          deletedAt: null,
+        },
+      }),
+    );
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user;
   }
 }

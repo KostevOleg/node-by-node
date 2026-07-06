@@ -65,9 +65,7 @@ export class MessagesService {
         where: {
           deletedAt: null,
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: pageSize + 1,
         ...(cursor
           ? {
@@ -103,9 +101,7 @@ export class MessagesService {
           conversationId,
           deletedAt: null,
         },
-        orderBy: {
-          createdAt: 'asc',
-        },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         take: pageSize + 1,
         ...(cursor
           ? {
