@@ -52,6 +52,38 @@ export class UsersService {
       }),
     );
   }
+
+  async getUsersPage(cursor?: string, take = 50) {
+    const pageSize = Math.min(Math.max(take, 1), 100);
+
+    const users = await prismaErrorHandler(() =>
+      this.prismaService.user.findMany({
+        where: {
+          deletedAt: null,
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: pageSize + 1,
+        ...(cursor
+          ? {
+              cursor: {
+                id: cursor,
+              },
+              skip: 1,
+            }
+          : {}),
+      }),
+    );
+
+    const hasNextPage = users.length > pageSize;
+    const data = hasNextPage ? users.slice(0, pageSize) : users;
+    const nextCursor = hasNextPage ? data[data.length - 1].id : null;
+
+    return {
+      data,
+      nextCursor,
+    };
+  }
+
   async delete(id: string) {
     await this.findById(id);
 
@@ -63,5 +95,57 @@ export class UsersService {
         },
       }),
     );
+  }
+
+  async getOrganizationUsersPage(
+    organizationId: string,
+    cursor?: string,
+    take = 50,
+  ) {
+    const pageSize = Math.min(Math.max(take, 1), 100);
+
+    const users = await prismaErrorHandler(() =>
+      this.prismaService.user.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: pageSize + 1,
+        ...(cursor
+          ? {
+              cursor: {
+                id: cursor,
+              },
+              skip: 1,
+            }
+          : {}),
+      }),
+    );
+
+    const hasNextPage = users.length > pageSize;
+    const data = hasNextPage ? users.slice(0, pageSize) : users;
+    const nextCursor = hasNextPage ? data[data.length - 1].id : null;
+
+    return {
+      data,
+      nextCursor,
+    };
+  }
+  async findByEmail(email: string) {
+    const user = await prismaErrorHandler(() =>
+      this.prismaService.user.findFirst({
+        where: {
+          email,
+          deletedAt: null,
+        },
+      }),
+    );
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user;
   }
 }

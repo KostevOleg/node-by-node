@@ -83,6 +83,51 @@ describe('UsersService', () => {
     });
   });
 
+  it('should get a users page', async () => {
+    const secondUser = {
+      ...user,
+      id: 'second-user-id',
+      email: 'second@example.com',
+    };
+
+    prismaService.user.findMany.mockResolvedValue([user, secondUser]);
+
+    await expect(service.getUsersPage(undefined, 1)).resolves.toEqual({
+      data: [user],
+      nextCursor: 'user-id',
+    });
+    expect(prismaService.user.findMany).toHaveBeenCalledWith({
+      where: {
+        deletedAt: null,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 2,
+    });
+  });
+
+  it('should get an organization users page with cursor', async () => {
+    prismaService.user.findMany.mockResolvedValue([user]);
+
+    await expect(
+      service.getOrganizationUsersPage('organization-id', 'cursor-id', 10),
+    ).resolves.toEqual({
+      data: [user],
+      nextCursor: null,
+    });
+    expect(prismaService.user.findMany).toHaveBeenCalledWith({
+      where: {
+        organizationId: 'organization-id',
+        deletedAt: null,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 11,
+      cursor: {
+        id: 'cursor-id',
+      },
+      skip: 1,
+    });
+  });
+
   it('should update a user', async () => {
     const data = {
       firstName: 'Updated',
@@ -118,5 +163,24 @@ describe('UsersService', () => {
         deletedAt: expect.any(Date) as Date,
       },
     });
+  });
+  it('should find a user by email', async () => {
+    prismaService.user.findFirst.mockResolvedValue(user);
+
+    await expect(service.findByEmail('user@example.com')).resolves.toEqual(user);
+    expect(prismaService.user.findFirst).toHaveBeenCalledWith({
+      where: {
+        email: 'user@example.com',
+        deletedAt: null,
+      },
+    });
+  });
+
+  it('should throw NotFoundException when user is not found by email', async () => {
+    prismaService.user.findFirst.mockResolvedValue(null);
+
+    await expect(service.findByEmail('missing@example.com')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });

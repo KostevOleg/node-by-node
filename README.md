@@ -26,6 +26,29 @@ For Docker/production-style startup, apply existing migrations with:
 yarn prisma:deploy
 ```
 
+## Database Seeding
+
+After PostgreSQL is running and migrations are applied, populate the database
+with test data:
+
+```bash
+yarn seed
+```
+
+On Windows PowerShell, if `yarn` is blocked by execution policy, use:
+
+```bash
+yarn.cmd seed
+```
+
+The seed script creates organizations, users, sessions for active users,
+conversations, and messages for performance testing.
+
+## Performance Documentation
+
+Database query analysis, added indexes, cursor pagination, and transaction notes
+are documented in `docs/query-analysis.md`.
+
 ## How to Start Docker Services
 
 ```bash

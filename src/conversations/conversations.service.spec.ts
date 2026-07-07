@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
-import { ConversationStatus } from '@prisma/client';
+import {
+  ConversationStatus,
+  MessageSender,
+  MessageStatus,
+} from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { ConversationsService } from './conversations.service';
 
 const prismaService = {
+  $transaction: jest.fn(),
   conversation: {
     create: jest.fn(),
     findFirst: jest.fn(),
@@ -21,6 +26,18 @@ describe('ConversationsService', () => {
     userId: 'user-id',
     title: 'General chat',
     status: ConversationStatus.ACTIVE,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    deletedAt: null,
+  };
+
+  const message = {
+    id: 'message-id',
+    conversationId: 'conversation-id',
+    sender: MessageSender.USER,
+    content: 'Hello',
+    status: MessageStatus.SENT,
+    tokenCount: 1,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -43,6 +60,82 @@ describe('ConversationsService', () => {
 
     await expect(service.create(data)).resolves.toEqual(conversation);
     expect(prismaService.conversation.create).toHaveBeenCalledWith({ data });
+  });
+
+  it('should create a conversation with its first message in a transaction', async () => {
+    const tx = {
+      conversation: {
+        create: jest.fn().mockResolvedValue(conversation),
+      },
+      message: {
+        create: jest.fn().mockResolvedValue(message),
+      },
+    };
+
+    prismaService.$transaction.mockImplementation((callback) => callback(tx));
+
+    await expect(
+      service.createWithFirstMessage({
+        userId: 'user-id',
+        title: 'General chat',
+        message: {
+          sender: MessageSender.USER,
+          content: 'Hello',
+          tokenCount: 1,
+        },
+      }),
+    ).resolves.toEqual({
+      conversation,
+      message,
+    });
+
+    expect(prismaService.$transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+    );
+    expect(tx.conversation.create).toHaveBeenCalledWith({
+      data: {
+        userId: 'user-id',
+        title: 'General chat',
+      },
+    });
+    expect(tx.message.create).toHaveBeenCalledWith({
+      data: {
+        conversationId: 'conversation-id',
+        sender: MessageSender.USER,
+        content: 'Hello',
+        tokenCount: 1,
+        status: undefined,
+      },
+    });
+  });
+
+  it('should fail the transaction when the first message cannot be created', async () => {
+    const error = new Error('Message create failed');
+    const tx = {
+      conversation: {
+        create: jest.fn().mockResolvedValue(conversation),
+      },
+      message: {
+        create: jest.fn().mockRejectedValue(error),
+      },
+    };
+
+    prismaService.$transaction.mockImplementation((callback) => callback(tx));
+
+    await expect(
+      service.createWithFirstMessage({
+        userId: 'user-id',
+        title: 'General chat',
+        message: {
+          sender: MessageSender.USER,
+          content: 'Hello',
+          tokenCount: 1,
+        },
+      }),
+    ).rejects.toThrow('Database error');
+
+    expect(tx.conversation.create).toHaveBeenCalled();
+    expect(tx.message.create).toHaveBeenCalled();
   });
 
   it('should find a conversation by id', async () => {
@@ -78,6 +171,53 @@ describe('ConversationsService', () => {
       orderBy: {
         createdAt: 'desc',
       },
+    });
+  });
+
+  it('should get a conversations page', async () => {
+    const secondConversation = {
+      ...conversation,
+      id: 'second-conversation-id',
+    };
+
+    prismaService.conversation.findMany.mockResolvedValue([
+      conversation,
+      secondConversation,
+    ]);
+
+    await expect(service.getConversationsPage(undefined, 1)).resolves.toEqual({
+      data: [conversation],
+      nextCursor: 'conversation-id',
+    });
+    expect(prismaService.conversation.findMany).toHaveBeenCalledWith({
+      where: {
+        deletedAt: null,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 2,
+    });
+  });
+
+  it('should get a user conversations page with cursor', async () => {
+    prismaService.conversation.findMany.mockResolvedValue([conversation]);
+
+    await expect(
+      service.getUserConversationsPage('user-id', 'cursor-id', 10),
+    ).resolves.toEqual({
+      data: [conversation],
+      nextCursor: null,
+    });
+    expect(prismaService.conversation.findMany).toHaveBeenCalledWith({
+      where: {
+        userId: 'user-id',
+        deletedAt: null,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 11,
+      cursor: {
+        id: 'cursor-id',
+      },
+      skip: 1,
     });
   });
 
