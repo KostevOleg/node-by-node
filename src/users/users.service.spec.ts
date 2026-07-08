@@ -176,7 +176,9 @@ describe('UsersService', () => {
   it('should find a user by email', async () => {
     prismaService.user.findFirst.mockResolvedValue(user);
 
-    await expect(service.findByEmail('user@example.com')).resolves.toEqual(user);
+    await expect(service.findByEmail('user@example.com')).resolves.toEqual(
+      user,
+    );
     expect(prismaService.user.findFirst).toHaveBeenCalledWith({
       where: {
         email: 'user@example.com',
