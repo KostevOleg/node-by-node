@@ -3,6 +3,7 @@ import { NotFoundException } from '@nestjs/common';
 import { SessionStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { SessionsService } from './sessions.service';
+import { sessionPublicSelect } from './session.select';
 
 const prismaService = {
   session: {
@@ -46,7 +47,10 @@ describe('SessionsService', () => {
     prismaService.session.create.mockResolvedValue(session);
 
     await expect(service.create(data)).resolves.toEqual(session);
-    expect(prismaService.session.create).toHaveBeenCalledWith({ data });
+    expect(prismaService.session.create).toHaveBeenCalledWith({
+      data,
+      select: sessionPublicSelect,
+    });
   });
 
   it('should find a session by id', async () => {
@@ -55,6 +59,7 @@ describe('SessionsService', () => {
     await expect(service.findById('session-id')).resolves.toEqual(session);
     expect(prismaService.session.findUnique).toHaveBeenCalledWith({
       where: { id: 'session-id' },
+      select: sessionPublicSelect,
     });
   });
 
@@ -78,6 +83,7 @@ describe('SessionsService', () => {
       orderBy: {
         createdAt: 'desc',
       },
+      select: sessionPublicSelect,
     });
   });
 
@@ -99,6 +105,7 @@ describe('SessionsService', () => {
     expect(prismaService.session.update).toHaveBeenCalledWith({
       where: { id: 'session-id' },
       data,
+      select: sessionPublicSelect,
     });
   });
 

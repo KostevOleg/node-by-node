@@ -8,6 +8,8 @@ import { PrismaService } from 'src/prisma/prisma-service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { prismaErrorHandler } from 'src/common/utils/prisma-error.handler';
+import { conversationPublicSelect } from './conversation.select';
+import { messagePublicSelect } from 'src/messages/message.select';
 
 @Injectable()
 export class ConversationsService {
@@ -17,6 +19,7 @@ export class ConversationsService {
     return prismaErrorHandler(() =>
       this.prismaService.conversation.create({
         data,
+        select: conversationPublicSelect,
       }),
     );
   }
@@ -38,6 +41,7 @@ export class ConversationsService {
             userId: data.userId,
             title: data.title,
           },
+          select: conversationPublicSelect,
         });
 
         const message = await tx.message.create({
@@ -48,6 +52,7 @@ export class ConversationsService {
             tokenCount: data.message.tokenCount,
             status: data.message.status,
           },
+          select: messagePublicSelect,
         });
 
         return {
@@ -65,6 +70,7 @@ export class ConversationsService {
           id,
           deletedAt: null,
         },
+        select: conversationPublicSelect,
       }),
     );
 
@@ -82,6 +88,7 @@ export class ConversationsService {
       this.prismaService.conversation.update({
         where: { id },
         data,
+        select: conversationPublicSelect,
       }),
     );
   }
@@ -95,6 +102,7 @@ export class ConversationsService {
         orderBy: {
           createdAt: 'desc',
         },
+        select: conversationPublicSelect,
       }),
     );
   }
@@ -109,6 +117,7 @@ export class ConversationsService {
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: pageSize + 1,
+        select: conversationPublicSelect,
         ...(cursor
           ? {
               cursor: {
@@ -141,6 +150,7 @@ export class ConversationsService {
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: pageSize + 1,
+        select: conversationPublicSelect,
         ...(cursor
           ? {
               cursor: {

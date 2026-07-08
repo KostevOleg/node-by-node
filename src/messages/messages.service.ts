@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma-service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { prismaErrorHandler } from 'src/common/utils/prisma-error.handler';
+import { messagePublicSelect } from './message.select';
 
 @Injectable()
 export class MessagesService {
@@ -12,6 +13,7 @@ export class MessagesService {
     return prismaErrorHandler(() =>
       this.prismaService.message.create({
         data,
+        select: messagePublicSelect,
       }),
     );
   }
@@ -23,6 +25,7 @@ export class MessagesService {
           id,
           deletedAt: null,
         },
+        select: messagePublicSelect,
       }),
     );
 
@@ -40,6 +43,7 @@ export class MessagesService {
       this.prismaService.message.update({
         where: { id },
         data,
+        select: messagePublicSelect,
       }),
     );
   }
@@ -53,6 +57,7 @@ export class MessagesService {
         orderBy: {
           createdAt: 'desc',
         },
+        select: messagePublicSelect,
       }),
     );
   }
@@ -67,6 +72,7 @@ export class MessagesService {
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: pageSize + 1,
+        select: messagePublicSelect,
         ...(cursor
           ? {
               cursor: {
@@ -103,6 +109,7 @@ export class MessagesService {
         },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         take: pageSize + 1,
+        select: messagePublicSelect,
         ...(cursor
           ? {
               cursor: {

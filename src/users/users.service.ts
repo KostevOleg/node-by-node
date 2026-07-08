@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma-service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { prismaErrorHandler } from 'src/common/utils/prisma-error.handler';
+import { userPublicSelect } from './user.select';
 
 @Injectable()
 export class UsersService {
@@ -11,6 +12,7 @@ export class UsersService {
     return prismaErrorHandler(() =>
       this.prismaService.user.create({
         data,
+        select: userPublicSelect,
       }),
     );
   }
@@ -21,6 +23,7 @@ export class UsersService {
           id,
           deletedAt: null,
         },
+        select: userPublicSelect,
       }),
     );
 
@@ -37,6 +40,7 @@ export class UsersService {
       this.prismaService.user.update({
         data,
         where: { id },
+        select: userPublicSelect,
       }),
     );
   }
@@ -49,6 +53,7 @@ export class UsersService {
         orderBy: {
           createdAt: 'desc',
         },
+        select: userPublicSelect,
       }),
     );
   }
@@ -63,6 +68,7 @@ export class UsersService {
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: pageSize + 1,
+        select: userPublicSelect,
         ...(cursor
           ? {
               cursor: {
@@ -112,6 +118,7 @@ export class UsersService {
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: pageSize + 1,
+        select: userPublicSelect,
         ...(cursor
           ? {
               cursor: {
@@ -139,6 +146,7 @@ export class UsersService {
           email,
           deletedAt: null,
         },
+        select: userPublicSelect,
       }),
     );
 

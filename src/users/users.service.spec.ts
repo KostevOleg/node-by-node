@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { UsersService } from './users.service';
+import { userPublicSelect } from './user.select';
 
 const prismaService = {
   user: {
@@ -46,7 +47,10 @@ describe('UsersService', () => {
     prismaService.user.create.mockResolvedValue(user);
 
     await expect(service.create(data)).resolves.toEqual(user);
-    expect(prismaService.user.create).toHaveBeenCalledWith({ data });
+    expect(prismaService.user.create).toHaveBeenCalledWith({
+      data,
+      select: userPublicSelect,
+    });
   });
 
   it('should find a user by id', async () => {
@@ -58,6 +62,7 @@ describe('UsersService', () => {
         id: 'user-id',
         deletedAt: null,
       },
+      select: userPublicSelect,
     });
   });
 
@@ -80,6 +85,7 @@ describe('UsersService', () => {
       orderBy: {
         createdAt: 'desc',
       },
+      select: userPublicSelect,
     });
   });
 
@@ -102,6 +108,7 @@ describe('UsersService', () => {
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 2,
+      select: userPublicSelect,
     });
   });
 
@@ -121,6 +128,7 @@ describe('UsersService', () => {
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 11,
+      select: userPublicSelect,
       cursor: {
         id: 'cursor-id',
       },
@@ -144,6 +152,7 @@ describe('UsersService', () => {
     expect(prismaService.user.update).toHaveBeenCalledWith({
       data,
       where: { id: 'user-id' },
+      select: userPublicSelect,
     });
   });
 
@@ -173,6 +182,7 @@ describe('UsersService', () => {
         email: 'user@example.com',
         deletedAt: null,
       },
+      select: userPublicSelect,
     });
   });
 

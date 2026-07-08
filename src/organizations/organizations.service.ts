@@ -4,6 +4,7 @@ import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { OrganizationStatus, SessionStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { prismaErrorHandler } from '../common/utils/prisma-error.handler';
+import { organizationPublicSelect } from './organization.select';
 
 @Injectable()
 export class OrganizationsService {
@@ -12,6 +13,7 @@ export class OrganizationsService {
     return prismaErrorHandler(() =>
       this.prismaService.organization.create({
         data,
+        select: organizationPublicSelect,
       }),
     );
   }
@@ -22,6 +24,7 @@ export class OrganizationsService {
       this.prismaService.organization.update({
         data,
         where: { id },
+        select: organizationPublicSelect,
       }),
     );
   }
@@ -33,6 +36,7 @@ export class OrganizationsService {
           id,
           deletedAt: null,
         },
+        select: organizationPublicSelect,
       }),
     );
 
@@ -52,8 +56,40 @@ export class OrganizationsService {
         orderBy: {
           createdAt: 'desc',
         },
+        select: organizationPublicSelect,
       }),
     );
+  }
+  async getOrganizationPage(cursor?: string, take = 50) {
+    const pageSize = Math.min(Math.max(take, 1), 100);
+
+    const organization = await prismaErrorHandler(() =>
+      this.prismaService.organization.findMany({
+        where: {
+          deletedAt: null,
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: pageSize + 1,
+        select: organizationPublicSelect,
+        ...(cursor
+          ? {
+              cursor: {
+                id: cursor,
+              },
+              skip: 1,
+            }
+          : {}),
+      }),
+    );
+
+    const hasNextPage = organization.length > pageSize;
+    const data = hasNextPage ? organization.slice(0, pageSize) : organization;
+    const nextCursor = hasNextPage ? data[data.length - 1].id : null;
+
+    return {
+      data,
+      nextCursor,
+    };
   }
 
   async delete(id: string) {
@@ -106,6 +142,7 @@ export class OrganizationsService {
             deletedAt,
             status: OrganizationStatus.ARCHIVED,
           },
+          select: organizationPublicSelect,
         });
 
         return {
