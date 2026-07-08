@@ -6,24 +6,30 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { ConversationsService } from './conversations.service';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
 
 @Controller('conversations')
 export class ConversationsController {
   constructor(private readonly conversationsService: ConversationsService) {}
 
   @Get()
-  findAll() {
-    return this.conversationsService.getAll();
+  findAll(@Query() query: PaginationDto) {
+    return this.conversationsService.getConversationsPage(
+      query.cursor,
+      query.take,
+    );
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.conversationsService.findById(id);
   }
 
@@ -33,13 +39,16 @@ export class ConversationsController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateConversationDto) {
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateConversationDto,
+  ) {
     return this.conversationsService.update(id, dto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
     await this.conversationsService.delete(id);
   }
 }
