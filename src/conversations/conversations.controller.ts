@@ -15,12 +15,25 @@ import { CreateConversationDto } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { ConversationsService } from './conversations.service';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
+import {
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
+@ApiTags('conversations')
 @Controller('conversations')
 export class ConversationsController {
   constructor(private readonly conversationsService: ConversationsService) {}
 
   @Get()
+  @ApiOperation({ summary: 'Get paginated conversations' })
+  @ApiQuery({ name: 'cursor', required: false, type: String })
+  @ApiQuery({ name: 'take', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'Conversations page returned.' })
+  @ApiResponse({ status: 400, description: 'Invalid query parameters.' })
   findAll(@Query() query: PaginationDto) {
     return this.conversationsService.getConversationsPage(
       query.cursor,
@@ -29,16 +42,37 @@ export class ConversationsController {
   }
 
   @Get(':id')
+  @ApiOperation({ summary: 'Get conversation by id' })
+  @ApiParam({ name: 'id', description: 'Conversation UUID' })
+  @ApiResponse({ status: 200, description: 'Conversation returned.' })
+  @ApiResponse({ status: 400, description: 'Invalid UUID.' })
+  @ApiResponse({ status: 404, description: 'Conversation not found.' })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.conversationsService.findById(id);
   }
 
   @Post()
+  @ApiOperation({ summary: 'Create conversation' })
+  @ApiResponse({ status: 201, description: 'Conversation created.' })
+  @ApiResponse({ status: 400, description: 'Invalid request body.' })
+  @ApiResponse({
+    status: 409,
+    description: 'Conversation conflicts with existing data.',
+  })
   create(@Body() dto: CreateConversationDto) {
     return this.conversationsService.create(dto);
   }
 
   @Patch(':id')
+  @ApiOperation({ summary: 'Update conversation' })
+  @ApiParam({ name: 'id', description: 'Conversation UUID' })
+  @ApiResponse({ status: 200, description: 'Conversation updated.' })
+  @ApiResponse({ status: 400, description: 'Invalid request body or UUID.' })
+  @ApiResponse({ status: 404, description: 'Conversation not found.' })
+  @ApiResponse({
+    status: 409,
+    description: 'Conversation conflicts with existing data.',
+  })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateConversationDto,
@@ -47,6 +81,11 @@ export class ConversationsController {
   }
 
   @Delete(':id')
+  @ApiOperation({ summary: 'Delete conversation' })
+  @ApiParam({ name: 'id', description: 'Conversation UUID' })
+  @ApiResponse({ status: 204, description: 'Conversation deleted.' })
+  @ApiResponse({ status: 400, description: 'Invalid UUID.' })
+  @ApiResponse({ status: 404, description: 'Conversation not found.' })
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     await this.conversationsService.delete(id);

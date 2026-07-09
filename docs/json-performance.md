@@ -141,7 +141,7 @@ sizes:
 
 | Request | Status | Response time | Observation |
 | --- | --- | ---: | --- |
-| `GET /messages?take=10` | `200 OK` | `723 ms` | Returned a paginated response with `nextCursor`. |
+| `GET /messages?take=10` | `200 OK` | `83 ms` | Returned a paginated response with `nextCursor`. |
 | `GET /messages?take=50` | `200 OK` | `62 ms` | Returned a paginated response with `nextCursor`. |
 | `GET /messages?take=100` | `200 OK` | Not recorded | Returned the largest allowed page size. |
 | `GET /messages?take=500` | `400 Bad Request` | Not recorded | Rejected by validation because `take` is capped at `100`. |

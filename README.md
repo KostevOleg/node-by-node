@@ -15,6 +15,36 @@ yarn start:dev
 ```
 
 Application URL: `http://localhost:3000`
+Swagger UI: `http://localhost:3000/api/docs`
+
+For local development, PostgreSQL must be running before the NestJS app starts.
+You can start the database with Docker:
+
+```bash
+docker compose up -d postgres
+```
+
+Then apply migrations and optionally seed test data:
+
+```bash
+yarn prisma:deploy
+yarn seed
+```
+
+Start the API in development mode:
+
+```bash
+yarn start:dev
+```
+
+Open Swagger UI to inspect and test the API:
+
+```text
+http://localhost:3000/api/docs
+```
+
+In Swagger UI, expand a resource, click `Try it out`, fill query parameters or
+request body fields, and execute the request.
 
 ## REST API Resources
 
@@ -98,6 +128,7 @@ conversations, and messages for performance testing.
 
 ## Project Documentation
 
+- Swagger/OpenAPI UI: `http://localhost:3000/api/docs`
 - Database design and relationships: `docs/database-design.md`
 - Query analysis, indexes, pagination, and transactions: `docs/query-analysis.md`
 - Error response format and examples: `docs/error-handling.md`
