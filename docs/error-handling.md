@@ -1,12 +1,23 @@
 # Error Handling
 
 The API uses a global NestJS exception filter to return errors in one
-consistent JSON format.
+consistent JSON format. The shape follows the same idea as Problem Details:
+each response includes a machine-readable type, a short title, the HTTP status,
+a human-readable detail, and the request instance.
 
 Prisma errors are first converted to NestJS HTTP exceptions by
 `prismaErrorHandler`. The global `HttpExceptionFilter` then converts those
 exceptions, validation errors, and unexpected errors into the response envelope
 described below.
+
+## Implementation
+
+- Global validation is configured in `src/main.ts` with `ValidationPipe`.
+- Global exception handling is configured in `src/main.ts` with
+  `HttpExceptionFilter`.
+- Prisma constraint errors are mapped in
+  `src/common/utils/prisma-error.handler.ts`.
+- Validation DTOs are defined next to their resources under `src/**/dto`.
 
 ## Error Response Format
 
@@ -34,7 +45,8 @@ Fields:
 ## Validation Error
 
 Invalid request bodies, route parameters, and query parameters return `400 Bad
-Request`.
+Request`. Unknown body fields are rejected because the validation pipe uses
+`whitelist` and `forbidNonWhitelisted`.
 
 Example request:
 
@@ -82,7 +94,9 @@ Example response:
 
 ## Conflict Error
 
-Duplicate unique values return `409 Conflict`.
+Duplicate unique values return `409 Conflict`. For example, creating a user with
+an email that already exists is converted from a Prisma unique constraint error
+into an HTTP conflict response.
 
 Example response:
 
@@ -115,3 +129,10 @@ Example response:
   "timestamp": "2026-07-08T12:00:00.000Z"
 }
 ```
+
+## Security Notes
+
+- Internal exception details are hidden from clients for `500` responses.
+- Sensitive database fields are not included in normal response selections.
+- Error responses include enough detail for API consumers to fix bad requests
+  without exposing stack traces or database internals.
