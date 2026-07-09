@@ -10,18 +10,23 @@ import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { prismaErrorHandler } from 'src/common/utils/prisma-error.handler';
 import { conversationPublicSelect } from './conversation.select';
 import { messagePublicSelect } from 'src/messages/message.select';
+import { serialize } from 'src/common/utils/serialize';
+import { ConversationResponseDto } from './dto/conversation-response.dto';
+import { MessageResponseDto } from 'src/messages/dto/message-response.dto';
 
 @Injectable()
 export class ConversationsService {
   constructor(private readonly prismaService: PrismaService) {}
 
   async create(data: CreateConversationDto) {
-    return prismaErrorHandler(() =>
+    const conversation = await prismaErrorHandler(() =>
       this.prismaService.conversation.create({
         data,
         select: conversationPublicSelect,
       }),
     );
+
+    return serialize(ConversationResponseDto, conversation);
   }
 
   async createWithFirstMessage(data: {
@@ -56,8 +61,8 @@ export class ConversationsService {
         });
 
         return {
-          conversation,
-          message,
+          conversation: serialize(ConversationResponseDto, conversation),
+          message: serialize(MessageResponseDto, message),
         };
       }),
     );
@@ -78,23 +83,25 @@ export class ConversationsService {
       throw new NotFoundException('Conversation not found');
     }
 
-    return conversation;
+    return serialize(ConversationResponseDto, conversation);
   }
 
   async update(id: string, data: UpdateConversationDto) {
     await this.findById(id);
 
-    return prismaErrorHandler(() =>
+    const conversation = await prismaErrorHandler(() =>
       this.prismaService.conversation.update({
         where: { id },
         data,
         select: conversationPublicSelect,
       }),
     );
+
+    return serialize(ConversationResponseDto, conversation);
   }
 
   async getAll() {
-    return prismaErrorHandler(() =>
+    const conversations = await prismaErrorHandler(() =>
       this.prismaService.conversation.findMany({
         where: {
           deletedAt: null,
@@ -105,6 +112,8 @@ export class ConversationsService {
         select: conversationPublicSelect,
       }),
     );
+
+    return serialize(ConversationResponseDto, conversations);
   }
 
   async getConversationsPage(cursor?: string, take = 50) {
@@ -134,7 +143,7 @@ export class ConversationsService {
     const nextCursor = hasNextPage ? data[data.length - 1].id : null;
 
     return {
-      data,
+      data: serialize(ConversationResponseDto, data),
       nextCursor,
     };
   }
@@ -167,7 +176,7 @@ export class ConversationsService {
     const nextCursor = hasNextPage ? data[data.length - 1].id : null;
 
     return {
-      data,
+      data: serialize(ConversationResponseDto, data),
       nextCursor,
     };
   }

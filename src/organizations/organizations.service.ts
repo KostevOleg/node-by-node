@@ -5,28 +5,34 @@ import { OrganizationStatus, SessionStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { prismaErrorHandler } from '../common/utils/prisma-error.handler';
 import { organizationPublicSelect } from './organization.select';
+import { serialize } from 'src/common/utils/serialize';
+import { OrganizationResponseDto } from './dto/organization-response.dto';
 
 @Injectable()
 export class OrganizationsService {
   constructor(private readonly prismaService: PrismaService) {}
   async create(data: CreateOrganizationDto) {
-    return prismaErrorHandler(() =>
+    const organization = await prismaErrorHandler(() =>
       this.prismaService.organization.create({
         data,
         select: organizationPublicSelect,
       }),
     );
+
+    return serialize(OrganizationResponseDto, organization);
   }
   async update(id: string, data: UpdateOrganizationDto) {
     await this.findById(id);
 
-    return prismaErrorHandler(() =>
+    const organization = await prismaErrorHandler(() =>
       this.prismaService.organization.update({
         data,
         where: { id },
         select: organizationPublicSelect,
       }),
     );
+
+    return serialize(OrganizationResponseDto, organization);
   }
 
   async findById(id: string) {
@@ -44,11 +50,11 @@ export class OrganizationsService {
       throw new NotFoundException('Organization not found');
     }
 
-    return organization;
+    return serialize(OrganizationResponseDto, organization);
   }
 
   async getAll() {
-    return prismaErrorHandler(() =>
+    const organizations = await prismaErrorHandler(() =>
       this.prismaService.organization.findMany({
         where: {
           deletedAt: null,
@@ -59,6 +65,8 @@ export class OrganizationsService {
         select: organizationPublicSelect,
       }),
     );
+
+    return serialize(OrganizationResponseDto, organizations);
   }
   async getOrganizationPage(cursor?: string, take = 50) {
     const pageSize = Math.min(Math.max(take, 1), 100);
@@ -87,7 +95,7 @@ export class OrganizationsService {
     const nextCursor = hasNextPage ? data[data.length - 1].id : null;
 
     return {
-      data,
+      data: serialize(OrganizationResponseDto, data),
       nextCursor,
     };
   }
@@ -146,7 +154,7 @@ export class OrganizationsService {
         });
 
         return {
-          organization,
+          organization: serialize(OrganizationResponseDto, organization),
           users,
           sessions,
         };

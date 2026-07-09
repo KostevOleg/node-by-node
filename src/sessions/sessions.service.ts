@@ -5,18 +5,22 @@ import { CreateSessionDto } from './dto/create-session.dto';
 import { UpdateSessionDto } from './dto/update-session.dto';
 import { prismaErrorHandler } from 'src/common/utils/prisma-error.handler';
 import { sessionPublicSelect } from './session.select';
+import { serialize } from 'src/common/utils/serialize';
+import { SessionResponseDto } from './dto/session-response.dto';
 
 @Injectable()
 export class SessionsService {
   constructor(private readonly prismaService: PrismaService) {}
 
   async create(data: CreateSessionDto) {
-    return prismaErrorHandler(() =>
+    const session = await prismaErrorHandler(() =>
       this.prismaService.session.create({
         data,
         select: sessionPublicSelect,
       }),
     );
+
+    return serialize(SessionResponseDto, session);
   }
 
   async findById(id: string) {
@@ -31,7 +35,7 @@ export class SessionsService {
       throw new NotFoundException('Session not found');
     }
 
-    return session;
+    return serialize(SessionResponseDto, session);
   }
 
   async getSessionsPage(cursor?: string, take = 50) {
@@ -62,7 +66,7 @@ export class SessionsService {
     const nextCursor = hasNextPage ? data[data.length - 1].id : null;
 
     return {
-      data,
+      data: serialize(SessionResponseDto, data),
       nextCursor,
     };
   }
@@ -70,17 +74,19 @@ export class SessionsService {
   async update(id: string, data: UpdateSessionDto) {
     await this.findById(id);
 
-    return prismaErrorHandler(() =>
+    const session = await prismaErrorHandler(() =>
       this.prismaService.session.update({
         where: { id },
         data,
         select: sessionPublicSelect,
       }),
     );
+
+    return serialize(SessionResponseDto, session);
   }
 
   async getAll() {
-    return prismaErrorHandler(() =>
+    const sessions = await prismaErrorHandler(() =>
       this.prismaService.session.findMany({
         where: {
           status: SessionStatus.ACTIVE,
@@ -92,6 +98,8 @@ export class SessionsService {
         select: sessionPublicSelect,
       }),
     );
+
+    return serialize(SessionResponseDto, sessions);
   }
 
   async delete(id: string) {
