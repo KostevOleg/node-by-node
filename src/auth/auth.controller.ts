@@ -3,6 +3,7 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { SignInDto } from './dto/sign-in.dto';
+import { SignOutDto } from './dto/sign-out.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -26,7 +27,7 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Sign out' })
   @ApiResponse({ status: 204, description: 'Signed out successfully.' })
-  signOut() {
-    return this.authService.signOut();
+  signOut(@Body() dto: SignOutDto) {
+    return this.authService.signOut(dto);
   }
 }
