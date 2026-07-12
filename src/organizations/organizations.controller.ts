@@ -22,6 +22,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import {
+  OrganizationPageResponseDto,
+  OrganizationResponseDto,
+} from './dto/organization-response.dto';
 
 @ApiTags('organizations')
 @Controller('organizations')
@@ -32,7 +36,11 @@ export class OrganizationsController {
   @ApiOperation({ summary: 'Get paginated organizations' })
   @ApiQuery({ name: 'cursor', required: false, type: String })
   @ApiQuery({ name: 'take', required: false, type: Number })
-  @ApiResponse({ status: 200, description: 'Organizations page returned.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Organizations page returned.',
+    type: OrganizationPageResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid query parameters.' })
   findAll(@Query() query: PaginationDto) {
     return this.organizationService.getOrganizationPage(
@@ -44,7 +52,11 @@ export class OrganizationsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get organization by id' })
   @ApiParam({ name: 'id', description: 'Organization UUID' })
-  @ApiResponse({ status: 200, description: 'Organization returned.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Organization returned.',
+    type: OrganizationResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid UUID.' })
   @ApiResponse({ status: 404, description: 'Organization not found.' })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
@@ -53,7 +65,11 @@ export class OrganizationsController {
 
   @Post()
   @ApiOperation({ summary: 'Create organization' })
-  @ApiResponse({ status: 201, description: 'Organization created.' })
+  @ApiResponse({
+    status: 201,
+    description: 'Organization created.',
+    type: OrganizationResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid request body.' })
   @ApiResponse({
     status: 409,
@@ -66,7 +82,11 @@ export class OrganizationsController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update organization' })
   @ApiParam({ name: 'id', description: 'Organization UUID' })
-  @ApiResponse({ status: 200, description: 'Organization updated.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Organization updated.',
+    type: OrganizationResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid request body or UUID.' })
   @ApiResponse({ status: 404, description: 'Organization not found.' })
   @ApiResponse({

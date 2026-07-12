@@ -22,6 +22,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { UserPageResponseDto, UserResponseDto } from './dto/user-response.dto';
 
 @ApiTags('users')
 @Controller('users')
@@ -32,7 +33,11 @@ export class UsersController {
   @ApiOperation({ summary: 'Get paginated users' })
   @ApiQuery({ name: 'cursor', required: false, type: String })
   @ApiQuery({ name: 'take', required: false, type: Number })
-  @ApiResponse({ status: 200, description: 'Users page returned.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Users page returned.',
+    type: UserPageResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid query parameters.' })
   findAll(@Query() query: PaginationDto) {
     return this.usersService.getUsersPage(query.cursor, query.take);
@@ -41,7 +46,11 @@ export class UsersController {
   @Get(':id')
   @ApiOperation({ summary: 'Get user by id' })
   @ApiParam({ name: 'id', description: 'User UUID' })
-  @ApiResponse({ status: 200, description: 'User returned.' })
+  @ApiResponse({
+    status: 200,
+    description: 'User returned.',
+    type: UserResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid UUID.' })
   @ApiResponse({ status: 404, description: 'User not found.' })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
@@ -50,7 +59,11 @@ export class UsersController {
 
   @Post()
   @ApiOperation({ summary: 'Create user' })
-  @ApiResponse({ status: 201, description: 'User created.' })
+  @ApiResponse({
+    status: 201,
+    description: 'User created.',
+    type: UserResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid request body.' })
   @ApiResponse({
     status: 409,
@@ -63,7 +76,11 @@ export class UsersController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update user' })
   @ApiParam({ name: 'id', description: 'User UUID' })
-  @ApiResponse({ status: 200, description: 'User updated.' })
+  @ApiResponse({
+    status: 200,
+    description: 'User updated.',
+    type: UserResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid request body or UUID.' })
   @ApiResponse({ status: 404, description: 'User not found.' })
   @ApiResponse({

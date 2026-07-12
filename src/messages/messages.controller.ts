@@ -22,6 +22,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import {
+  MessagePageResponseDto,
+  MessageResponseDto,
+} from './dto/message-response.dto';
 
 @ApiTags('messages')
 @Controller('messages')
@@ -32,7 +36,11 @@ export class MessagesController {
   @ApiOperation({ summary: 'Get paginated messages' })
   @ApiQuery({ name: 'cursor', required: false, type: String })
   @ApiQuery({ name: 'take', required: false, type: Number })
-  @ApiResponse({ status: 200, description: 'Messages page returned.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Messages page returned.',
+    type: MessagePageResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid query parameters.' })
   findAll(@Query() query: PaginationDto) {
     return this.messagesService.getMessagesPage(query.cursor, query.take);
@@ -41,7 +49,11 @@ export class MessagesController {
   @Get(':id')
   @ApiOperation({ summary: 'Get message by id' })
   @ApiParam({ name: 'id', description: 'Message UUID' })
-  @ApiResponse({ status: 200, description: 'Message returned.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Message returned.',
+    type: MessageResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid UUID.' })
   @ApiResponse({ status: 404, description: 'Message not found.' })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
@@ -50,7 +62,11 @@ export class MessagesController {
 
   @Post()
   @ApiOperation({ summary: 'Create message' })
-  @ApiResponse({ status: 201, description: 'Message created.' })
+  @ApiResponse({
+    status: 201,
+    description: 'Message created.',
+    type: MessageResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid request body.' })
   @ApiResponse({
     status: 409,
@@ -63,7 +79,11 @@ export class MessagesController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update message' })
   @ApiParam({ name: 'id', description: 'Message UUID' })
-  @ApiResponse({ status: 200, description: 'Message updated.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Message updated.',
+    type: MessageResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid request body or UUID.' })
   @ApiResponse({ status: 404, description: 'Message not found.' })
   @ApiResponse({

@@ -22,6 +22,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import {
+  ConversationPageResponseDto,
+  ConversationResponseDto,
+} from './dto/conversation-response.dto';
 
 @ApiTags('conversations')
 @Controller('conversations')
@@ -32,7 +36,11 @@ export class ConversationsController {
   @ApiOperation({ summary: 'Get paginated conversations' })
   @ApiQuery({ name: 'cursor', required: false, type: String })
   @ApiQuery({ name: 'take', required: false, type: Number })
-  @ApiResponse({ status: 200, description: 'Conversations page returned.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Conversations page returned.',
+    type: ConversationPageResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid query parameters.' })
   findAll(@Query() query: PaginationDto) {
     return this.conversationsService.getConversationsPage(
@@ -44,7 +52,11 @@ export class ConversationsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get conversation by id' })
   @ApiParam({ name: 'id', description: 'Conversation UUID' })
-  @ApiResponse({ status: 200, description: 'Conversation returned.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Conversation returned.',
+    type: ConversationResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid UUID.' })
   @ApiResponse({ status: 404, description: 'Conversation not found.' })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
@@ -53,7 +65,11 @@ export class ConversationsController {
 
   @Post()
   @ApiOperation({ summary: 'Create conversation' })
-  @ApiResponse({ status: 201, description: 'Conversation created.' })
+  @ApiResponse({
+    status: 201,
+    description: 'Conversation created.',
+    type: ConversationResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid request body.' })
   @ApiResponse({
     status: 409,
@@ -66,7 +82,11 @@ export class ConversationsController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update conversation' })
   @ApiParam({ name: 'id', description: 'Conversation UUID' })
-  @ApiResponse({ status: 200, description: 'Conversation updated.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Conversation updated.',
+    type: ConversationResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid request body or UUID.' })
   @ApiResponse({ status: 404, description: 'Conversation not found.' })
   @ApiResponse({

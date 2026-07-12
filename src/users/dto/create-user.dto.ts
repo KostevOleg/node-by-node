@@ -1,11 +1,13 @@
 import {
   IsEmail,
+  IsEnum,
   IsNotEmpty,
   IsString,
   IsUUID,
   MaxLength,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { UserStatus } from '@prisma/client';
 
 export class CreateUserDto {
   @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
@@ -35,9 +37,7 @@ export class CreateUserDto {
   @MaxLength(100)
   lastName: string;
 
-  @ApiProperty({ example: 'ACTIVE' })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(20)
-  status: string;
+  @ApiProperty({ enum: UserStatus, example: UserStatus.ACTIVE })
+  @IsEnum(UserStatus)
+  status: UserStatus;
 }

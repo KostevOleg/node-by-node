@@ -22,6 +22,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import {
+  SessionPageResponseDto,
+  SessionResponseDto,
+} from './dto/session-response.dto';
 
 @ApiTags('sessions')
 @Controller('sessions')
@@ -32,7 +36,11 @@ export class SessionsController {
   @ApiOperation({ summary: 'Get paginated sessions' })
   @ApiQuery({ name: 'cursor', required: false, type: String })
   @ApiQuery({ name: 'take', required: false, type: Number })
-  @ApiResponse({ status: 200, description: 'Sessions page returned.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Sessions page returned.',
+    type: SessionPageResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid query parameters.' })
   findAll(@Query() query: PaginationDto) {
     return this.sessionsService.getSessionsPage(query.cursor, query.take);
@@ -41,7 +49,11 @@ export class SessionsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get session by id' })
   @ApiParam({ name: 'id', description: 'Session UUID' })
-  @ApiResponse({ status: 200, description: 'Session returned.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Session returned.',
+    type: SessionResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid UUID.' })
   @ApiResponse({ status: 404, description: 'Session not found.' })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
@@ -50,7 +62,11 @@ export class SessionsController {
 
   @Post()
   @ApiOperation({ summary: 'Create session' })
-  @ApiResponse({ status: 201, description: 'Session created.' })
+  @ApiResponse({
+    status: 201,
+    description: 'Session created.',
+    type: SessionResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid request body.' })
   @ApiResponse({
     status: 409,
@@ -63,7 +79,11 @@ export class SessionsController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update session' })
   @ApiParam({ name: 'id', description: 'Session UUID' })
-  @ApiResponse({ status: 200, description: 'Session updated.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Session updated.',
+    type: SessionResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid request body or UUID.' })
   @ApiResponse({ status: 404, description: 'Session not found.' })
   @ApiResponse({

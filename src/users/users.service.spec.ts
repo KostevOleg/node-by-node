@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
+import { UserStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { UsersService } from './users.service';
 import { userPublicSelect } from './user.select';
@@ -23,7 +24,7 @@ describe('UsersService', () => {
     passwordHash: 'hashed-password',
     firstName: 'Alex',
     lastName: 'Smith',
-    status: 'ACTIVE',
+    status: UserStatus.ACTIVE,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -41,7 +42,7 @@ describe('UsersService', () => {
       passwordHash: 'hashed-password',
       firstName: 'Alex',
       lastName: 'Smith',
-      status: 'ACTIVE',
+      status: UserStatus.ACTIVE,
     };
 
     prismaService.user.create.mockResolvedValue(user);

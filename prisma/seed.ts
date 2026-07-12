@@ -5,6 +5,7 @@ import {
   MessageStatus,
   OrganizationStatus,
   PrismaClient,
+  UserStatus,
 } from '@prisma/client';
 import type { Conversation, Organization, Prisma, User } from '@prisma/client';
 
@@ -226,7 +227,7 @@ async function createUsers(organizations: Organization[]) {
       passwordHash: `hashed-password-${i + 1}`,
       firstName: firstName,
       lastName: lastName,
-      status: i % 10 === 0 ? 'INACTIVE' : 'ACTIVE',
+      status: i % 10 === 0 ? UserStatus.INACTIVE : UserStatus.ACTIVE,
     });
   }
   await prisma.user.createMany({
@@ -320,7 +321,7 @@ async function createMessages(conversations: Conversation[]) {
 }
 
 async function createSessions(users: User[]) {
-  const activeUsers = users.filter((user) => user.status === 'ACTIVE');
+  const activeUsers = users.filter((user) => user.status === UserStatus.ACTIVE);
   const sessionMocks: Prisma.SessionCreateManyInput[] = [];
 
   for (const user of activeUsers) {
