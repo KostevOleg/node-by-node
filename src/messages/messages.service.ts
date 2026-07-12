@@ -3,17 +3,22 @@ import { PrismaService } from 'src/prisma/prisma-service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { prismaErrorHandler } from 'src/common/utils/prisma-error.handler';
+import { messagePublicSelect } from './message.select';
+import { serialize } from 'src/common/utils/serialize';
+import { MessageResponseDto } from './dto/message-response.dto';
 
 @Injectable()
 export class MessagesService {
   constructor(private readonly prismaService: PrismaService) {}
 
   async create(data: CreateMessageDto) {
-    return prismaErrorHandler(() =>
+    const response = await prismaErrorHandler(() =>
       this.prismaService.message.create({
         data,
+        select: messagePublicSelect,
       }),
     );
+    return serialize(MessageResponseDto, response);
   }
 
   async findById(id: string) {
@@ -23,6 +28,7 @@ export class MessagesService {
           id,
           deletedAt: null,
         },
+        select: messagePublicSelect,
       }),
     );
 
@@ -30,22 +36,25 @@ export class MessagesService {
       throw new NotFoundException('Message not found');
     }
 
-    return message;
+    return serialize(MessageResponseDto, message);
   }
 
   async update(id: string, data: UpdateMessageDto) {
     await this.findById(id);
 
-    return prismaErrorHandler(() =>
+    const response = await prismaErrorHandler(() =>
       this.prismaService.message.update({
         where: { id },
         data,
+        select: messagePublicSelect,
       }),
     );
+
+    return serialize(MessageResponseDto, response);
   }
 
   async getAll() {
-    return prismaErrorHandler(() =>
+    const response = await prismaErrorHandler(() =>
       this.prismaService.message.findMany({
         where: {
           deletedAt: null,
@@ -53,8 +62,10 @@ export class MessagesService {
         orderBy: {
           createdAt: 'desc',
         },
+        select: messagePublicSelect,
       }),
     );
+    return serialize(MessageResponseDto, response);
   }
 
   async getMessagesPage(cursor?: string, take = 50) {
@@ -67,6 +78,7 @@ export class MessagesService {
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: pageSize + 1,
+        select: messagePublicSelect,
         ...(cursor
           ? {
               cursor: {
@@ -83,7 +95,7 @@ export class MessagesService {
     const nextCursor = hasNextPage ? data[data.length - 1].id : null;
 
     return {
-      data,
+      data: serialize(MessageResponseDto, data),
       nextCursor,
     };
   }
@@ -103,6 +115,7 @@ export class MessagesService {
         },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         take: pageSize + 1,
+        select: messagePublicSelect,
         ...(cursor
           ? {
               cursor: {
@@ -119,7 +132,7 @@ export class MessagesService {
     const nextCursor = hasNextPage ? data[data.length - 1].id : null;
 
     return {
-      data,
+      data: serialize(MessageResponseDto, data),
       nextCursor,
     };
   }

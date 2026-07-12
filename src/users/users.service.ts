@@ -3,16 +3,22 @@ import { PrismaService } from 'src/prisma/prisma-service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { prismaErrorHandler } from 'src/common/utils/prisma-error.handler';
+import { userPublicSelect } from './user.select';
+import { serialize } from 'src/common/utils/serialize';
+import { UserResponseDto } from './dto/user-response.dto';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prismaService: PrismaService) {}
   async create(data: CreateUserDto) {
-    return prismaErrorHandler(() =>
+    const user = await prismaErrorHandler(() =>
       this.prismaService.user.create({
         data,
+        select: userPublicSelect,
       }),
     );
+
+    return serialize(UserResponseDto, user);
   }
   async findById(id: string) {
     const user = await prismaErrorHandler(() =>
@@ -21,6 +27,7 @@ export class UsersService {
           id,
           deletedAt: null,
         },
+        select: userPublicSelect,
       }),
     );
 
@@ -28,20 +35,23 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    return user;
+    return serialize(UserResponseDto, user);
   }
   async update(id: string, data: UpdateUserDto) {
     await this.findById(id);
 
-    return prismaErrorHandler(() =>
+    const user = await prismaErrorHandler(() =>
       this.prismaService.user.update({
         data,
         where: { id },
+        select: userPublicSelect,
       }),
     );
+
+    return serialize(UserResponseDto, user);
   }
   async getAll() {
-    return prismaErrorHandler(() =>
+    const users = await prismaErrorHandler(() =>
       this.prismaService.user.findMany({
         where: {
           deletedAt: null,
@@ -49,8 +59,11 @@ export class UsersService {
         orderBy: {
           createdAt: 'desc',
         },
+        select: userPublicSelect,
       }),
     );
+
+    return serialize(UserResponseDto, users);
   }
 
   async getUsersPage(cursor?: string, take = 50) {
@@ -63,6 +76,7 @@ export class UsersService {
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: pageSize + 1,
+        select: userPublicSelect,
         ...(cursor
           ? {
               cursor: {
@@ -79,7 +93,7 @@ export class UsersService {
     const nextCursor = hasNextPage ? data[data.length - 1].id : null;
 
     return {
-      data,
+      data: serialize(UserResponseDto, data),
       nextCursor,
     };
   }
@@ -112,6 +126,7 @@ export class UsersService {
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: pageSize + 1,
+        select: userPublicSelect,
         ...(cursor
           ? {
               cursor: {
@@ -128,7 +143,7 @@ export class UsersService {
     const nextCursor = hasNextPage ? data[data.length - 1].id : null;
 
     return {
-      data,
+      data: serialize(UserResponseDto, data),
       nextCursor,
     };
   }
@@ -139,6 +154,7 @@ export class UsersService {
           email,
           deletedAt: null,
         },
+        select: userPublicSelect,
       }),
     );
 
@@ -146,6 +162,6 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    return user;
+    return serialize(UserResponseDto, user);
   }
 }

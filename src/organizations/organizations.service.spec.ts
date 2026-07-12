@@ -3,6 +3,7 @@ import { OrganizationStatus, SessionStatus } from '@prisma/client';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { OrganizationsService } from './organizations.service';
+import { organizationPublicSelect } from './organization.select';
 
 const prismaService = {
   $transaction: jest.fn(),
@@ -44,7 +45,10 @@ describe('OrganizationsService', () => {
     prismaService.organization.create.mockResolvedValue(organization);
 
     await expect(service.create(data)).resolves.toEqual(organization);
-    expect(prismaService.organization.create).toHaveBeenCalledWith({ data });
+    expect(prismaService.organization.create).toHaveBeenCalledWith({
+      data,
+      select: organizationPublicSelect,
+    });
   });
 
   it('should find an organization by id', async () => {
@@ -58,6 +62,7 @@ describe('OrganizationsService', () => {
         id: 'organization-id',
         deletedAt: null,
       },
+      select: organizationPublicSelect,
     });
   });
 
@@ -80,6 +85,7 @@ describe('OrganizationsService', () => {
       orderBy: {
         createdAt: 'desc',
       },
+      select: organizationPublicSelect,
     });
   });
 
@@ -102,6 +108,7 @@ describe('OrganizationsService', () => {
     expect(prismaService.organization.update).toHaveBeenCalledWith({
       data,
       where: { id: 'organization-id' },
+      select: organizationPublicSelect,
     });
   });
 
@@ -186,6 +193,7 @@ describe('OrganizationsService', () => {
         deletedAt: expect.any(Date),
         status: OrganizationStatus.ARCHIVED,
       },
+      select: organizationPublicSelect,
     });
   });
 

@@ -7,6 +7,8 @@ import {
 } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { ConversationsService } from './conversations.service';
+import { conversationPublicSelect } from './conversation.select';
+import { messagePublicSelect } from 'src/messages/message.select';
 
 const prismaService = {
   $transaction: jest.fn(),
@@ -59,7 +61,10 @@ describe('ConversationsService', () => {
     prismaService.conversation.create.mockResolvedValue(conversation);
 
     await expect(service.create(data)).resolves.toEqual(conversation);
-    expect(prismaService.conversation.create).toHaveBeenCalledWith({ data });
+    expect(prismaService.conversation.create).toHaveBeenCalledWith({
+      data,
+      select: conversationPublicSelect,
+    });
   });
 
   it('should create a conversation with its first message in a transaction', async () => {
@@ -97,6 +102,7 @@ describe('ConversationsService', () => {
         userId: 'user-id',
         title: 'General chat',
       },
+      select: conversationPublicSelect,
     });
     expect(tx.message.create).toHaveBeenCalledWith({
       data: {
@@ -106,6 +112,7 @@ describe('ConversationsService', () => {
         tokenCount: 1,
         status: undefined,
       },
+      select: messagePublicSelect,
     });
   });
 
@@ -149,6 +156,7 @@ describe('ConversationsService', () => {
         id: 'conversation-id',
         deletedAt: null,
       },
+      select: conversationPublicSelect,
     });
   });
 
@@ -171,6 +179,7 @@ describe('ConversationsService', () => {
       orderBy: {
         createdAt: 'desc',
       },
+      select: conversationPublicSelect,
     });
   });
 
@@ -195,6 +204,7 @@ describe('ConversationsService', () => {
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 2,
+      select: conversationPublicSelect,
     });
   });
 
@@ -214,6 +224,7 @@ describe('ConversationsService', () => {
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 11,
+      select: conversationPublicSelect,
       cursor: {
         id: 'cursor-id',
       },
@@ -239,6 +250,7 @@ describe('ConversationsService', () => {
     expect(prismaService.conversation.update).toHaveBeenCalledWith({
       where: { id: 'conversation-id' },
       data,
+      select: conversationPublicSelect,
     });
   });
 

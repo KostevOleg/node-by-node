@@ -3,6 +3,7 @@ import { NotFoundException } from '@nestjs/common';
 import { MessageSender, MessageStatus } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { MessagesService } from './messages.service';
+import { messagePublicSelect } from './message.select';
 
 const prismaService = {
   message: {
@@ -44,7 +45,10 @@ describe('MessagesService', () => {
     prismaService.message.create.mockResolvedValue(message);
 
     await expect(service.create(data)).resolves.toEqual(message);
-    expect(prismaService.message.create).toHaveBeenCalledWith({ data });
+    expect(prismaService.message.create).toHaveBeenCalledWith({
+      data,
+      select: messagePublicSelect,
+    });
   });
 
   it('should find a message by id', async () => {
@@ -56,6 +60,7 @@ describe('MessagesService', () => {
         id: 'message-id',
         deletedAt: null,
       },
+      select: messagePublicSelect,
     });
   });
 
@@ -78,6 +83,7 @@ describe('MessagesService', () => {
       orderBy: {
         createdAt: 'desc',
       },
+      select: messagePublicSelect,
     });
   });
 
@@ -99,6 +105,7 @@ describe('MessagesService', () => {
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 2,
+      select: messagePublicSelect,
     });
   });
 
@@ -118,6 +125,7 @@ describe('MessagesService', () => {
       },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take: 11,
+      select: messagePublicSelect,
       cursor: {
         id: 'cursor-id',
       },
@@ -143,6 +151,7 @@ describe('MessagesService', () => {
     expect(prismaService.message.update).toHaveBeenCalledWith({
       where: { id: 'message-id' },
       data,
+      select: messagePublicSelect,
     });
   });
 

@@ -2,9 +2,12 @@ import {
   BadRequestException,
   ConflictException,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+
+const logger = new Logger('PrismaErrorHandler');
 
 export async function prismaErrorHandler<T>(
   operation: () => Promise<T>,
@@ -23,6 +26,11 @@ export async function prismaErrorHandler<T>(
         throw new NotFoundException('Record not found');
       }
     }
+
+    logger.error(
+      'Unhandled Prisma error',
+      error instanceof Error ? error.stack : String(error),
+    );
     throw new InternalServerErrorException('Database error');
   }
 }
