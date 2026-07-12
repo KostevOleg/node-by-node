@@ -6,6 +6,8 @@ import { serialize } from 'src/common/utils/serialize';
 import { UserResponseDto } from 'src/users/dto/user-response.dto';
 import type { JwtSignOptions } from '@nestjs/jwt';
 import { SignOutDto } from './dto/sign-out.dto';
+import { RefreshDto } from './dto/refresh.dto';
+import { prismaErrorHandler } from 'src/common/utils/prisma-error.handler';
 import * as bcrypt from 'bcrypt';
 
 type RefreshTokenPayload = {
@@ -21,14 +23,23 @@ export class AuthService {
     private readonly prismaService: PrismaService,
     private readonly jwtService: JwtService,
   ) {}
+  accessTokenExpiresIn: JwtSignOptions['expiresIn'] =
+    (process.env.JWT_ACCESS_TOKEN_EXPIRES_IN as JwtSignOptions['expiresIn']) ??
+    '15m';
+  refreshTokenExpiresIn: JwtSignOptions['expiresIn'] =
+    (process.env.JWT_REFRESH_TOKEN_EXPIRES_IN as JwtSignOptions['expiresIn']) ??
+    '30d';
+
   async signIn(_dto: SignInDto) {
-    const user = await this.prismaService.user.findFirst({
-      where: {
-        email: _dto.email,
-        deletedAt: null,
-        status: 'ACTIVE',
-      },
-    });
+    const user = await prismaErrorHandler(() =>
+      this.prismaService.user.findFirst({
+        where: {
+          email: _dto.email,
+          deletedAt: null,
+          status: 'ACTIVE',
+        },
+      }),
+    );
     if (!user) {
       throw new UnauthorizedException('Invalid credentions');
     }
@@ -39,19 +50,16 @@ export class AuthService {
     if (!isValidPassword) {
       throw new UnauthorizedException('Invalid credentions');
     }
-    const session = await this.prismaService.session.create({
-      data: {
-        userId: user.id,
-        refreshTokenHash: 'pending',
-        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
-      },
-    });
-    const accessTokenExpiresIn: JwtSignOptions['expiresIn'] =
-      (process.env
-        .JWT_ACCESS_TOKEN_EXPIRES_IN as JwtSignOptions['expiresIn']) ?? '15m';
-    const refreshTokenExpiresIn: JwtSignOptions['expiresIn'] =
-      (process.env
-        .JWT_REFRESH_TOKEN_EXPIRES_IN as JwtSignOptions['expiresIn']) ?? '30d';
+    const session = await prismaErrorHandler(() =>
+      this.prismaService.session.create({
+        data: {
+          userId: user.id,
+          refreshTokenHash: 'pending',
+          expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+        },
+      }),
+    );
+
     const accessToken = await this.jwtService.signAsync(
       {
         sub: user.id,
@@ -59,7 +67,7 @@ export class AuthService {
         type: 'access',
         sessionId: session.id,
       },
-      { expiresIn: accessTokenExpiresIn },
+      { expiresIn: this.accessTokenExpiresIn },
     );
     const refreshToken = await this.jwtService.signAsync(
       {
@@ -68,17 +76,19 @@ export class AuthService {
         type: 'refresh',
         sessionId: session.id,
       },
-      { expiresIn: refreshTokenExpiresIn },
+      { expiresIn: this.refreshTokenExpiresIn },
     );
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-    await this.prismaService.session.update({
-      where: {
-        id: session.id,
-      },
-      data: {
-        refreshTokenHash,
-      },
-    });
+    await prismaErrorHandler(() =>
+      this.prismaService.session.update({
+        where: {
+          id: session.id,
+        },
+        data: {
+          refreshTokenHash,
+        },
+      }),
+    );
     const serializedUser = serialize(UserResponseDto, user);
     return {
       accessToken,
@@ -95,11 +105,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid token');
     }
 
-    const session = await this.prismaService.session.findUnique({
-      where: {
-        id: payload.sessionId,
-      },
-    });
+    const session = await prismaErrorHandler(() =>
+      this.prismaService.session.findUnique({
+        where: {
+          id: payload.sessionId,
+        },
+      }),
+    );
 
     if (!session) {
       throw new UnauthorizedException('Invalid token');
@@ -117,14 +129,94 @@ export class AuthService {
       throw new UnauthorizedException('Invalid token');
     }
 
-    await this.prismaService.session.update({
-      where: {
-        id: session.id,
+    await prismaErrorHandler(() =>
+      this.prismaService.session.update({
+        where: {
+          id: session.id,
+        },
+        data: {
+          status: 'REVOKED',
+          revokedAt: new Date(),
+        },
+      }),
+    );
+  }
+  async refresh(dto: RefreshDto) {
+    const payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(
+      dto.refreshToken,
+    );
+
+    if (payload.type !== 'refresh') {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    const session = await prismaErrorHandler(() =>
+      this.prismaService.session.findUnique({
+        where: {
+          id: payload.sessionId,
+        },
+      }),
+    );
+
+    if (!session || session?.revokedAt) {
+      throw new UnauthorizedException('Invalid token');
+    }
+    const isValidRefresh = await bcrypt.compare(
+      dto.refreshToken,
+      session.refreshTokenHash,
+    );
+
+    if (!isValidRefresh) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    const user = await prismaErrorHandler(() =>
+      this.prismaService.user.findFirst({
+        where: {
+          id: payload.sub,
+          deletedAt: null,
+          status: 'ACTIVE',
+        },
+      }),
+    );
+    if (!user) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    const newAccessToken = await this.jwtService.signAsync(
+      {
+        sub: user.id,
+        email: user.email,
+        type: 'access',
+        sessionId: session.id,
       },
-      data: {
-        status: 'REVOKED',
-        revokedAt: new Date(),
+      { expiresIn: this.accessTokenExpiresIn },
+    );
+    const newRefreshToken = await this.jwtService.signAsync(
+      {
+        sub: user.id,
+        email: user.email,
+        type: 'refresh',
+        sessionId: session.id,
       },
-    });
+      { expiresIn: this.refreshTokenExpiresIn },
+    );
+    const newRefreshTokenHash = await bcrypt.hash(newRefreshToken, 10);
+
+    await prismaErrorHandler(() =>
+      this.prismaService.session.update({
+        where: {
+          id: session.id,
+        },
+        data: {
+          refreshTokenHash: newRefreshTokenHash,
+        },
+      }),
+    );
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    };
   }
 }
