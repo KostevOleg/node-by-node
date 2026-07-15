@@ -6,14 +6,24 @@ import { prismaErrorHandler } from 'src/common/utils/prisma-error.handler';
 import { userPublicSelect } from './user.select';
 import { serialize } from 'src/common/utils/serialize';
 import { UserResponseDto } from './dto/user-response.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prismaService: PrismaService) {}
   async create(data: CreateUserDto) {
+    const passwordHash = await bcrypt.hash(data.password, 10);
+
     const user = await prismaErrorHandler(() =>
       this.prismaService.user.create({
-        data,
+        data: {
+          organizationId: data.organizationId,
+          email: data.email,
+          passwordHash,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          status: data.status,
+        },
         select: userPublicSelect,
       }),
     );
@@ -39,10 +49,20 @@ export class UsersService {
   }
   async update(id: string, data: UpdateUserDto) {
     await this.findById(id);
+    const updateData = {
+      organizationId: data.organizationId,
+      email: data.email,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      status: data.status,
+      ...(data.password
+        ? { passwordHash: await bcrypt.hash(data.password, 10) }
+        : {}),
+    };
 
     const user = await prismaErrorHandler(() =>
       this.prismaService.user.update({
-        data,
+        data: updateData,
         where: { id },
         select: userPublicSelect,
       }),
