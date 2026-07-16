@@ -3,14 +3,20 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtModule } from '@nestjs/jwt';
 import { AccessTokenGuard } from './access-token.guard';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   controllers: [AuthController],
   providers: [AuthService, AccessTokenGuard],
-  exports: [AccessTokenGuard],
+  exports: [AccessTokenGuard, JwtModule],
   imports: [
-    JwtModule.register({
-      secret: process.env.JWT_SECRET,
+    ConfigModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.getOrThrow<string>('JWT_SECRET'),
+      }),
     }),
   ],
 })

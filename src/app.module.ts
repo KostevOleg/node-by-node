@@ -13,6 +13,10 @@ import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validationSchema,
+    }),
     PrismaModule,
     SessionsModule,
     ConversationsModule,
@@ -20,10 +24,6 @@ import { AuthModule } from './auth/auth.module';
     MessagesModule,
     OrganizationsModule,
     AuthModule,
-    ConfigModule.forRoot({
-      isGlobal: true,
-      validationSchema,
-    }),
   ],
   controllers: [AppController],
   providers: [AppService],
