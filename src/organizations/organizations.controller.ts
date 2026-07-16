@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { OrganizationsService } from './organizations.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
@@ -26,8 +27,10 @@ import {
   OrganizationPageResponseDto,
   OrganizationResponseDto,
 } from './dto/organization-response.dto';
+import { AccessTokenGuard } from 'src/auth/access-token.guard';
 
 @ApiTags('organizations')
+@UseGuards(AccessTokenGuard)
 @Controller('organizations')
 export class OrganizationsController {
   constructor(private readonly organizationService: OrganizationsService) {}

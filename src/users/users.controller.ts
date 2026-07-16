@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -23,8 +24,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { UserPageResponseDto, UserResponseDto } from './dto/user-response.dto';
+import { AccessTokenGuard } from 'src/auth/access-token.guard';
 
 @ApiTags('users')
+@UseGuards(AccessTokenGuard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}

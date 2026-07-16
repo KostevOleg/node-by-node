@@ -22,6 +22,7 @@ export class AccessTokenGuard implements CanActivate {
     private readonly jwtService: JwtService,
   ) {}
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    let payload: AccessTokenPayload;
     const request: Request = context.switchToHttp().getRequest();
     if (!request) {
       throw new UnauthorizedException('Unauthorized');
@@ -34,8 +35,11 @@ export class AccessTokenGuard implements CanActivate {
     if (type !== 'Bearer' || !token) {
       throw new UnauthorizedException('Unauthorized');
     }
-    const payload =
-      await this.jwtService.verifyAsync<AccessTokenPayload>(token);
+    try {
+      payload = await this.jwtService.verifyAsync<AccessTokenPayload>(token);
+    } catch {
+      throw new UnauthorizedException('Unauthorized');
+    }
     if (payload.type !== 'access') {
       throw new UnauthorizedException('Unauthorized');
     }
@@ -46,7 +50,24 @@ export class AccessTokenGuard implements CanActivate {
         },
       }),
     );
-    if (!session || session.status !== 'ACTIVE' || session.revokedAt) {
+    const isSessionActive = session?.status === 'ACTIVE' && !session.revokedAt;
+    const isSessionExpired = session ? session.expiresAt <= new Date() : true;
+    const isSessionOwner = session?.userId === payload.sub;
+
+    if (!session || !isSessionActive || isSessionExpired || !isSessionOwner) {
+      throw new UnauthorizedException('Unauthorized');
+    }
+    const user = await prismaErrorHandler(() =>
+      this.prismaService.user.findFirst({
+        where: {
+          id: payload.sub,
+          deletedAt: null,
+          status: 'ACTIVE',
+        },
+      }),
+    );
+
+    if (!user) {
       throw new UnauthorizedException('Unauthorized');
     }
 

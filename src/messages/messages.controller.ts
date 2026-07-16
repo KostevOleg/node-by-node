@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
@@ -26,8 +27,10 @@ import {
   MessagePageResponseDto,
   MessageResponseDto,
 } from './dto/message-response.dto';
+import { AccessTokenGuard } from 'src/auth/access-token.guard';
 
 @ApiTags('messages')
+@UseGuards(AccessTokenGuard)
 @Controller('messages')
 export class MessagesController {
   constructor(private readonly messagesService: MessagesService) {}
