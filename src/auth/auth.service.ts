@@ -97,9 +97,15 @@ export class AuthService {
     };
   }
   async signOut(dto: SignOutDto) {
-    const payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(
-      dto.refreshToken,
-    );
+    let payload: RefreshTokenPayload;
+
+    try {
+      payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(
+        dto.refreshToken,
+      );
+    } catch {
+      throw new UnauthorizedException('Invalid token');
+    }
 
     if (payload.type !== 'refresh') {
       throw new UnauthorizedException('Invalid token');
@@ -142,9 +148,15 @@ export class AuthService {
     );
   }
   async refresh(dto: RefreshDto) {
-    const payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(
-      dto.refreshToken,
-    );
+    let payload: RefreshTokenPayload;
+
+    try {
+      payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(
+        dto.refreshToken,
+      );
+    } catch {
+      throw new UnauthorizedException('Invalid token');
+    }
 
     if (payload.type !== 'refresh') {
       throw new UnauthorizedException('Invalid token');

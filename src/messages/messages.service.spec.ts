@@ -29,6 +29,17 @@ describe('MessagesService', () => {
     deletedAt: null,
   };
 
+  const publicMessage = {
+    id: message.id,
+    conversationId: message.conversationId,
+    sender: message.sender,
+    content: message.content,
+    status: message.status,
+    tokenCount: message.tokenCount,
+    createdAt: message.createdAt,
+    updatedAt: message.updatedAt,
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     service = new MessagesService(prismaService as unknown as PrismaService);
@@ -44,7 +55,7 @@ describe('MessagesService', () => {
 
     prismaService.message.create.mockResolvedValue(message);
 
-    await expect(service.create(data)).resolves.toEqual(message);
+    await expect(service.create(data)).resolves.toMatchObject(publicMessage);
     expect(prismaService.message.create).toHaveBeenCalledWith({
       data,
       select: messagePublicSelect,
@@ -54,7 +65,9 @@ describe('MessagesService', () => {
   it('should find a message by id', async () => {
     prismaService.message.findFirst.mockResolvedValue(message);
 
-    await expect(service.findById('message-id')).resolves.toEqual(message);
+    await expect(service.findById('message-id')).resolves.toMatchObject(
+      publicMessage,
+    );
     expect(prismaService.message.findFirst).toHaveBeenCalledWith({
       where: {
         id: 'message-id',
@@ -75,7 +88,7 @@ describe('MessagesService', () => {
   it('should get all messages', async () => {
     prismaService.message.findMany.mockResolvedValue([message]);
 
-    await expect(service.getAll()).resolves.toEqual([message]);
+    await expect(service.getAll()).resolves.toMatchObject([publicMessage]);
     expect(prismaService.message.findMany).toHaveBeenCalledWith({
       where: {
         deletedAt: null,
@@ -96,7 +109,7 @@ describe('MessagesService', () => {
     prismaService.message.findMany.mockResolvedValue([message, secondMessage]);
 
     await expect(service.getMessagesPage(undefined, 1)).resolves.toEqual({
-      data: [message],
+      data: [expect.objectContaining(publicMessage)],
       nextCursor: 'message-id',
     });
     expect(prismaService.message.findMany).toHaveBeenCalledWith({
@@ -115,7 +128,7 @@ describe('MessagesService', () => {
     await expect(
       service.getConversationMessagesPage('conversation-id', 'cursor-id', 10),
     ).resolves.toEqual({
-      data: [message],
+      data: [expect.objectContaining(publicMessage)],
       nextCursor: null,
     });
     expect(prismaService.message.findMany).toHaveBeenCalledWith({
@@ -145,9 +158,10 @@ describe('MessagesService', () => {
     prismaService.message.findFirst.mockResolvedValue(message);
     prismaService.message.update.mockResolvedValue(updatedMessage);
 
-    await expect(service.update('message-id', data)).resolves.toEqual(
-      updatedMessage,
-    );
+    await expect(service.update('message-id', data)).resolves.toMatchObject({
+      ...publicMessage,
+      ...data,
+    });
     expect(prismaService.message.update).toHaveBeenCalledWith({
       where: { id: 'message-id' },
       data,

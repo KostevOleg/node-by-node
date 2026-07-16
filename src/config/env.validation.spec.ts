@@ -14,6 +14,7 @@ describe('env validation schema', () => {
     REDIS_HOST: 'redis',
     REDIS_PORT: 6379,
     RABBITMQ_URL: 'amqp://rabbitmq:5672',
+    JWT_SECRET: 'test-secret',
   };
 
   const validateEnv = (env: Record<string, unknown>) =>
