@@ -40,9 +40,9 @@ export class UserPageResponseDto {
   @ApiProperty({ type: [UserResponseDto] })
   data: UserResponseDto[];
 
-  @ApiProperty({
-    example: '550e8400-e29b-41d4-a716-446655440000',
-    nullable: true,
-  })
-  nextCursor: string | null;
+  @ApiProperty({ example: 50 })
+  limit: number;
+
+  @ApiProperty({ example: 0 })
+  offset: number;
 }

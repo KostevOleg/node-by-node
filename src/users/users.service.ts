@@ -86,8 +86,9 @@ export class UsersService {
     return serialize(UserResponseDto, users);
   }
 
-  async getUsersPage(cursor?: string, take = 50) {
-    const pageSize = Math.min(Math.max(take, 1), 100);
+  async getUsersPage(limit = 50, offset = 0) {
+    const pageSize = Math.min(Math.max(limit, 1), 100);
+    const skip = Math.max(offset, 0);
 
     const users = await prismaErrorHandler(() =>
       this.prismaService.user.findMany({
@@ -95,26 +96,16 @@ export class UsersService {
           deletedAt: null,
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        take: pageSize + 1,
+        skip,
+        take: pageSize,
         select: userPublicSelect,
-        ...(cursor
-          ? {
-              cursor: {
-                id: cursor,
-              },
-              skip: 1,
-            }
-          : {}),
       }),
     );
 
-    const hasNextPage = users.length > pageSize;
-    const data = hasNextPage ? users.slice(0, pageSize) : users;
-    const nextCursor = hasNextPage ? data[data.length - 1].id : null;
-
     return {
-      data: serialize(UserResponseDto, data),
-      nextCursor,
+      data: serialize(UserResponseDto, users),
+      limit: pageSize,
+      offset: skip,
     };
   }
 

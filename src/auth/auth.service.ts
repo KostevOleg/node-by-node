@@ -170,9 +170,14 @@ export class AuthService {
       }),
     );
 
-    if (!session || session?.revokedAt) {
+    const isSessionActive = session?.status === 'ACTIVE' && !session.revokedAt;
+    const isSessionExpired = session ? session.expiresAt <= new Date() : true;
+    const isSessionOwner = session?.userId === payload.sub;
+
+    if (!session || !isSessionActive || isSessionExpired || !isSessionOwner) {
       throw new UnauthorizedException('Invalid token');
     }
+
     const isValidRefresh = await bcrypt.compare(
       dto.refreshToken,
       session.refreshTokenHash,
@@ -215,16 +220,27 @@ export class AuthService {
     );
     const newRefreshTokenHash = await bcrypt.hash(newRefreshToken, 10);
 
-    await prismaErrorHandler(() =>
-      this.prismaService.session.update({
+    const rotatedSession = await prismaErrorHandler(() =>
+      this.prismaService.session.updateMany({
         where: {
           id: session.id,
+          refreshTokenHash: session.refreshTokenHash,
+          status: 'ACTIVE',
+          revokedAt: null,
+          expiresAt: {
+            gt: new Date(),
+          },
+          userId: payload.sub,
         },
         data: {
           refreshTokenHash: newRefreshTokenHash,
         },
       }),
     );
+
+    if (rotatedSession.count !== 1) {
+      throw new UnauthorizedException('Invalid token');
+    }
 
     return {
       accessToken: newAccessToken,

@@ -89,9 +89,7 @@ describe('OrganizationsService', () => {
   it('should get all organizations', async () => {
     prismaService.organization.findMany.mockResolvedValue([organization]);
 
-    await expect(service.getAll()).resolves.toMatchObject([
-      publicOrganization,
-    ]);
+    await expect(service.getAll()).resolves.toMatchObject([publicOrganization]);
     expect(prismaService.organization.findMany).toHaveBeenCalledWith({
       where: {
         deletedAt: null,
@@ -99,6 +97,25 @@ describe('OrganizationsService', () => {
       orderBy: {
         createdAt: 'desc',
       },
+      select: organizationPublicSelect,
+    });
+  });
+
+  it('should get an organizations page', async () => {
+    prismaService.organization.findMany.mockResolvedValue([organization]);
+
+    await expect(service.getOrganizationPage(1, 0)).resolves.toEqual({
+      data: [expect.objectContaining(publicOrganization)],
+      limit: 1,
+      offset: 0,
+    });
+    expect(prismaService.organization.findMany).toHaveBeenCalledWith({
+      where: {
+        deletedAt: null,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      skip: 0,
+      take: 1,
       select: organizationPublicSelect,
     });
   });
@@ -116,12 +133,12 @@ describe('OrganizationsService', () => {
     prismaService.organization.findFirst.mockResolvedValue(organization);
     prismaService.organization.update.mockResolvedValue(updatedOrganization);
 
-    await expect(service.update('organization-id', data)).resolves.toMatchObject(
-      {
-        ...publicOrganization,
-        ...data,
-      },
-    );
+    await expect(
+      service.update('organization-id', data),
+    ).resolves.toMatchObject({
+      ...publicOrganization,
+      ...data,
+    });
     expect(prismaService.organization.update).toHaveBeenCalledWith({
       data,
       where: { id: 'organization-id' },

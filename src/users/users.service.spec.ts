@@ -112,24 +112,20 @@ describe('UsersService', () => {
   });
 
   it('should get a users page', async () => {
-    const secondUser = {
-      ...user,
-      id: 'second-user-id',
-      email: 'second@example.com',
-    };
+    prismaService.user.findMany.mockResolvedValue([user]);
 
-    prismaService.user.findMany.mockResolvedValue([user, secondUser]);
-
-    await expect(service.getUsersPage(undefined, 1)).resolves.toEqual({
+    await expect(service.getUsersPage(1, 0)).resolves.toEqual({
       data: [expect.objectContaining(publicUser)],
-      nextCursor: 'user-id',
+      limit: 1,
+      offset: 0,
     });
     expect(prismaService.user.findMany).toHaveBeenCalledWith({
       where: {
         deletedAt: null,
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: 2,
+      skip: 0,
+      take: 1,
       select: userPublicSelect,
     });
   });
@@ -201,9 +197,9 @@ describe('UsersService', () => {
   it('should find a user by email', async () => {
     prismaService.user.findFirst.mockResolvedValue(user);
 
-    await expect(service.findByEmail('user@example.com')).resolves.toMatchObject(
-      publicUser,
-    );
+    await expect(
+      service.findByEmail('user@example.com'),
+    ).resolves.toMatchObject(publicUser);
     expect(prismaService.user.findFirst).toHaveBeenCalledWith({
       where: {
         email: 'user@example.com',
