@@ -14,4 +14,7 @@ export const validationSchema = Joi.object({
   REDIS_HOST: Joi.string().required(),
   REDIS_PORT: Joi.number().port().required(),
   RABBITMQ_URL: Joi.string().uri().required(),
+  JWT_SECRET: Joi.string().required(),
+  JWT_ACCESS_TOKEN_EXPIRES_IN: Joi.string().default('15m'),
+  JWT_REFRESH_TOKEN_EXPIRES_IN: Joi.string().default('30d'),
 });

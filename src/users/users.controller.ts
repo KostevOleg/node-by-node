@@ -10,11 +10,11 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
-import { PaginationDto } from 'src/common/dto/pagination.dto';
 import {
   ApiOperation,
   ApiParam,
@@ -23,24 +23,27 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { UserPageResponseDto, UserResponseDto } from './dto/user-response.dto';
+import { AccessTokenGuard } from 'src/auth/access-token.guard';
+import { OffsetPaginationDto } from 'src/common/dto/offset-pagination.dto';
 
 @ApiTags('users')
+@UseGuards(AccessTokenGuard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
   @ApiOperation({ summary: 'Get paginated users' })
-  @ApiQuery({ name: 'cursor', required: false, type: String })
-  @ApiQuery({ name: 'take', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
   @ApiResponse({
     status: 200,
     description: 'Users page returned.',
     type: UserPageResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Invalid query parameters.' })
-  findAll(@Query() query: PaginationDto) {
-    return this.usersService.getUsersPage(query.cursor, query.take);
+  findAll(@Query() query: OffsetPaginationDto) {
+    return this.usersService.getUsersPage(query.limit, query.offset);
   }
 
   @Get(':id')

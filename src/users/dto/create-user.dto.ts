@@ -5,6 +5,7 @@ import {
   IsString,
   IsUUID,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserStatus } from '@prisma/client';
@@ -19,11 +20,12 @@ export class CreateUserDto {
   @MaxLength(255)
   email: string;
 
-  @ApiProperty({ example: 'hashed-password-value' })
+  @ApiProperty({ example: 'qwerty1234' })
   @IsString()
   @IsNotEmpty()
-  @MaxLength(255)
-  passwordHash: string;
+  @MinLength(8)
+  @MaxLength(100)
+  password: string;
 
   @ApiProperty({ example: 'Jane' })
   @IsString()

@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { UpdateSessionDto } from './dto/update-session.dto';
@@ -26,8 +27,10 @@ import {
   SessionPageResponseDto,
   SessionResponseDto,
 } from './dto/session-response.dto';
+import { AccessTokenGuard } from 'src/auth/access-token.guard';
 
 @ApiTags('sessions')
+@UseGuards(AccessTokenGuard)
 @Controller('sessions')
 export class SessionsController {
   constructor(private readonly sessionsService: SessionsService) {}

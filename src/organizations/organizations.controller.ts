@@ -10,11 +10,12 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { OrganizationsService } from './organizations.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { PaginationDto } from 'src/common/dto/pagination.dto';
+import { OffsetPaginationDto } from 'src/common/dto/offset-pagination.dto';
 import {
   ApiOperation,
   ApiParam,
@@ -26,26 +27,28 @@ import {
   OrganizationPageResponseDto,
   OrganizationResponseDto,
 } from './dto/organization-response.dto';
+import { AccessTokenGuard } from 'src/auth/access-token.guard';
 
 @ApiTags('organizations')
+@UseGuards(AccessTokenGuard)
 @Controller('organizations')
 export class OrganizationsController {
   constructor(private readonly organizationService: OrganizationsService) {}
 
   @Get()
   @ApiOperation({ summary: 'Get paginated organizations' })
-  @ApiQuery({ name: 'cursor', required: false, type: String })
-  @ApiQuery({ name: 'take', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
   @ApiResponse({
     status: 200,
     description: 'Organizations page returned.',
     type: OrganizationPageResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Invalid query parameters.' })
-  findAll(@Query() query: PaginationDto) {
+  findAll(@Query() query: OffsetPaginationDto) {
     return this.organizationService.getOrganizationPage(
-      query.cursor,
-      query.take,
+      query.limit,
+      query.offset,
     );
   }
 
@@ -108,6 +111,6 @@ export class OrganizationsController {
   @ApiResponse({ status: 404, description: 'Organization not found.' })
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id', ParseUUIDPipe) id: string) {
-    await this.organizationService.delete(id);
+    await this.organizationService.deleteWithUsersAndSessions(id);
   }
 }

@@ -29,6 +29,16 @@ describe('UsersService', () => {
     updatedAt: new Date(),
     deletedAt: null,
   };
+  const publicUser = {
+    id: user.id,
+    organizationId: user.organizationId,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    status: user.status,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -39,7 +49,7 @@ describe('UsersService', () => {
     const data = {
       organizationId: 'organization-id',
       email: 'user@example.com',
-      passwordHash: 'hashed-password',
+      password: 'qwerty1234',
       firstName: 'Alex',
       lastName: 'Smith',
       status: UserStatus.ACTIVE,
@@ -47,9 +57,16 @@ describe('UsersService', () => {
 
     prismaService.user.create.mockResolvedValue(user);
 
-    await expect(service.create(data)).resolves.toEqual(user);
+    await expect(service.create(data)).resolves.toMatchObject(publicUser);
     expect(prismaService.user.create).toHaveBeenCalledWith({
-      data,
+      data: {
+        organizationId: data.organizationId,
+        email: data.email,
+        passwordHash: expect.any(String) as string,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        status: data.status,
+      },
       select: userPublicSelect,
     });
   });
@@ -57,7 +74,9 @@ describe('UsersService', () => {
   it('should find a user by id', async () => {
     prismaService.user.findFirst.mockResolvedValue(user);
 
-    await expect(service.findById('user-id')).resolves.toEqual(user);
+    await expect(service.findById('user-id')).resolves.toMatchObject(
+      publicUser,
+    );
     expect(prismaService.user.findFirst).toHaveBeenCalledWith({
       where: {
         id: 'user-id',
@@ -78,7 +97,9 @@ describe('UsersService', () => {
   it('should get all users', async () => {
     prismaService.user.findMany.mockResolvedValue([user]);
 
-    await expect(service.getAll()).resolves.toEqual([user]);
+    await expect(service.getAll()).resolves.toEqual([
+      expect.objectContaining(publicUser),
+    ]);
     expect(prismaService.user.findMany).toHaveBeenCalledWith({
       where: {
         deletedAt: null,
@@ -91,24 +112,20 @@ describe('UsersService', () => {
   });
 
   it('should get a users page', async () => {
-    const secondUser = {
-      ...user,
-      id: 'second-user-id',
-      email: 'second@example.com',
-    };
+    prismaService.user.findMany.mockResolvedValue([user]);
 
-    prismaService.user.findMany.mockResolvedValue([user, secondUser]);
-
-    await expect(service.getUsersPage(undefined, 1)).resolves.toEqual({
-      data: [user],
-      nextCursor: 'user-id',
+    await expect(service.getUsersPage(1, 0)).resolves.toEqual({
+      data: [expect.objectContaining(publicUser)],
+      limit: 1,
+      offset: 0,
     });
     expect(prismaService.user.findMany).toHaveBeenCalledWith({
       where: {
         deletedAt: null,
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: 2,
+      skip: 0,
+      take: 1,
       select: userPublicSelect,
     });
   });
@@ -119,7 +136,7 @@ describe('UsersService', () => {
     await expect(
       service.getOrganizationUsersPage('organization-id', 'cursor-id', 10),
     ).resolves.toEqual({
-      data: [user],
+      data: [expect.objectContaining(publicUser)],
       nextCursor: null,
     });
     expect(prismaService.user.findMany).toHaveBeenCalledWith({
@@ -149,9 +166,12 @@ describe('UsersService', () => {
     prismaService.user.findFirst.mockResolvedValue(user);
     prismaService.user.update.mockResolvedValue(updatedUser);
 
-    await expect(service.update('user-id', data)).resolves.toEqual(updatedUser);
+    await expect(service.update('user-id', data)).resolves.toMatchObject({
+      ...publicUser,
+      firstName: 'Updated',
+    });
     expect(prismaService.user.update).toHaveBeenCalledWith({
-      data,
+      data: expect.objectContaining(data),
       where: { id: 'user-id' },
       select: userPublicSelect,
     });
@@ -177,9 +197,9 @@ describe('UsersService', () => {
   it('should find a user by email', async () => {
     prismaService.user.findFirst.mockResolvedValue(user);
 
-    await expect(service.findByEmail('user@example.com')).resolves.toEqual(
-      user,
-    );
+    await expect(
+      service.findByEmail('user@example.com'),
+    ).resolves.toMatchObject(publicUser);
     expect(prismaService.user.findFirst).toHaveBeenCalledWith({
       where: {
         email: 'user@example.com',

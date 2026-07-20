@@ -6,14 +6,24 @@ import { prismaErrorHandler } from 'src/common/utils/prisma-error.handler';
 import { userPublicSelect } from './user.select';
 import { serialize } from 'src/common/utils/serialize';
 import { UserResponseDto } from './dto/user-response.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prismaService: PrismaService) {}
   async create(data: CreateUserDto) {
+    const passwordHash = await bcrypt.hash(data.password, 10);
+
     const user = await prismaErrorHandler(() =>
       this.prismaService.user.create({
-        data,
+        data: {
+          organizationId: data.organizationId,
+          email: data.email,
+          passwordHash,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          status: data.status,
+        },
         select: userPublicSelect,
       }),
     );
@@ -39,10 +49,20 @@ export class UsersService {
   }
   async update(id: string, data: UpdateUserDto) {
     await this.findById(id);
+    const updateData = {
+      organizationId: data.organizationId,
+      email: data.email,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      status: data.status,
+      ...(data.password
+        ? { passwordHash: await bcrypt.hash(data.password, 10) }
+        : {}),
+    };
 
     const user = await prismaErrorHandler(() =>
       this.prismaService.user.update({
-        data,
+        data: updateData,
         where: { id },
         select: userPublicSelect,
       }),
@@ -66,8 +86,9 @@ export class UsersService {
     return serialize(UserResponseDto, users);
   }
 
-  async getUsersPage(cursor?: string, take = 50) {
-    const pageSize = Math.min(Math.max(take, 1), 100);
+  async getUsersPage(limit = 50, offset = 0) {
+    const pageSize = Math.min(Math.max(limit, 1), 100);
+    const skip = Math.max(offset, 0);
 
     const users = await prismaErrorHandler(() =>
       this.prismaService.user.findMany({
@@ -75,26 +96,16 @@ export class UsersService {
           deletedAt: null,
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        take: pageSize + 1,
+        skip,
+        take: pageSize,
         select: userPublicSelect,
-        ...(cursor
-          ? {
-              cursor: {
-                id: cursor,
-              },
-              skip: 1,
-            }
-          : {}),
       }),
     );
 
-    const hasNextPage = users.length > pageSize;
-    const data = hasNextPage ? users.slice(0, pageSize) : users;
-    const nextCursor = hasNextPage ? data[data.length - 1].id : null;
-
     return {
-      data: serialize(UserResponseDto, data),
-      nextCursor,
+      data: serialize(UserResponseDto, users),
+      limit: pageSize,
+      offset: skip,
     };
   }
 

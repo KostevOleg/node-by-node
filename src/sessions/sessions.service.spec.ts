@@ -30,6 +30,18 @@ describe('SessionsService', () => {
     revokedAt: null,
   };
 
+  const publicSession = {
+    id: session.id,
+    userId: session.userId,
+    userAgent: session.userAgent,
+    ipAddress: session.ipAddress,
+    status: session.status,
+    expiresAt: session.expiresAt,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    revokedAt: session.revokedAt,
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     service = new SessionsService(prismaService as unknown as PrismaService);
@@ -46,7 +58,7 @@ describe('SessionsService', () => {
 
     prismaService.session.create.mockResolvedValue(session);
 
-    await expect(service.create(data)).resolves.toEqual(session);
+    await expect(service.create(data)).resolves.toMatchObject(publicSession);
     expect(prismaService.session.create).toHaveBeenCalledWith({
       data,
       select: sessionPublicSelect,
@@ -56,7 +68,9 @@ describe('SessionsService', () => {
   it('should find a session by id', async () => {
     prismaService.session.findUnique.mockResolvedValue(session);
 
-    await expect(service.findById('session-id')).resolves.toEqual(session);
+    await expect(service.findById('session-id')).resolves.toMatchObject(
+      publicSession,
+    );
     expect(prismaService.session.findUnique).toHaveBeenCalledWith({
       where: { id: 'session-id' },
       select: sessionPublicSelect,
@@ -74,7 +88,7 @@ describe('SessionsService', () => {
   it('should get all sessions', async () => {
     prismaService.session.findMany.mockResolvedValue([session]);
 
-    await expect(service.getAll()).resolves.toEqual([session]);
+    await expect(service.getAll()).resolves.toMatchObject([publicSession]);
     expect(prismaService.session.findMany).toHaveBeenCalledWith({
       where: {
         status: SessionStatus.ACTIVE,
@@ -99,9 +113,10 @@ describe('SessionsService', () => {
     prismaService.session.findUnique.mockResolvedValue(session);
     prismaService.session.update.mockResolvedValue(updatedSession);
 
-    await expect(service.update('session-id', data)).resolves.toEqual(
-      updatedSession,
-    );
+    await expect(service.update('session-id', data)).resolves.toMatchObject({
+      ...publicSession,
+      ...data,
+    });
     expect(prismaService.session.update).toHaveBeenCalledWith({
       where: { id: 'session-id' },
       data,

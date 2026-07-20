@@ -1,10 +1,12 @@
 import {
   IsEmail,
   IsEnum,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { UserStatus } from '@prisma/client';
@@ -21,11 +23,13 @@ export class UpdateUserDto {
   @MaxLength(255)
   email?: string;
 
-  @ApiPropertyOptional({ example: 'hashed-password-value' })
+  @ApiPropertyOptional({ example: 'qwerty1234' })
   @IsString()
+  @IsNotEmpty()
   @IsOptional()
-  @MaxLength(255)
-  passwordHash?: string;
+  @MinLength(8)
+  @MaxLength(100)
+  password?: string;
 
   @ApiPropertyOptional({ example: 'Jane' })
   @IsString()

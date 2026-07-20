@@ -8,6 +8,7 @@ import {
   UserStatus,
 } from '@prisma/client';
 import type { Conversation, Organization, Prisma, User } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 const organizationMocks: Prisma.OrganizationCreateManyInput[] = [
   {
@@ -216,7 +217,9 @@ async function createOrganizations() {
 }
 
 async function createUsers(organizations: Organization[]) {
+  const passwordHash = await bcrypt.hash('qwerty1234', 10);
   const userMocks: Prisma.UserCreateManyInput[] = [];
+  
   for (let i = 0; i < 1000; i++) {
     const firstName = firstNames[i % firstNames.length];
     const lastName = lastNames[i % lastNames.length];
@@ -224,7 +227,7 @@ async function createUsers(organizations: Organization[]) {
     userMocks.push({
       organizationId: organization.id,
       email: `user-${i + 1}@example.com`,
-      passwordHash: `hashed-password-${i + 1}`,
+      passwordHash,
       firstName: firstName,
       lastName: lastName,
       status: i % 10 === 0 ? UserStatus.INACTIVE : UserStatus.ACTIVE,
