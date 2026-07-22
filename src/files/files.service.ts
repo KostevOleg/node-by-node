@@ -15,6 +15,7 @@ import { ObjectStorageService } from './storage/object-storage.service';
 import {
   ALLOWED_FILE_EXTENSIONS,
   ALLOWED_FILE_MIME_TYPES,
+  DANGEROUS_FILE_EXTENSIONS,
   MAX_FILE_SIZE_BYTES,
 } from './files.constants';
 import { fileTypeFromBuffer } from 'file-type';
@@ -50,8 +51,42 @@ export class FilesService {
       throw new BadRequestException('File is too large');
     }
   }
+  private validateFileName(originalName: string): void {
+    const fileName = originalName.trim();
+
+    if (!fileName) {
+      throw new BadRequestException('File name is required');
+    }
+
+    if (fileName.length > 255) {
+      throw new BadRequestException('File name is too long');
+    }
+
+    if (fileName.includes('\0')) {
+      throw new BadRequestException('File name is invalid');
+    }
+
+    if (fileName.includes('/') || fileName.includes('\\')) {
+      throw new BadRequestException('File name must not contain path segments');
+    }
+
+    if (fileName.includes('..')) {
+      throw new BadRequestException('File name must not contain traversal');
+    }
+
+    const parts = fileName.toLowerCase().split('.').filter(Boolean);
+    const extensions = parts.slice(1).map((part) => `.${part}`);
+
+    if (
+      extensions.some((extension) => DANGEROUS_FILE_EXTENSIONS.has(extension))
+    ) {
+      throw new BadRequestException('File name contains dangerous extension');
+    }
+  }
+
   private validateUploadFile(file: Express.Multer.File): string {
     this.validateFileExists(file);
+    this.validateFileName(file.originalname);
 
     const extension = this.getFileExtension(file.originalname);
 
