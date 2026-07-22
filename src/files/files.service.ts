@@ -17,6 +17,7 @@ import {
   ALLOWED_FILE_MIME_TYPES,
   MAX_FILE_SIZE_BYTES,
 } from './files.constants';
+import { fileTypeFromBuffer } from 'file-type';
 
 @Injectable()
 export class FilesService {
@@ -108,6 +109,10 @@ export class FilesService {
 
     if (duplicate) {
       throw new ConflictException('File already exists in this organization');
+    }
+    const detected = await fileTypeFromBuffer(file.buffer);
+    if (!detected || !ALLOWED_FILE_MIME_TYPES.has(detected.mime)) {
+      throw new BadRequestException('File content type is not allowed');
     }
 
     await this.objectStorageService.putObject(
