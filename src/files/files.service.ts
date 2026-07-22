@@ -12,7 +12,11 @@ import { serialize } from 'src/common/utils/serialize';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { FileResponseDto } from './dto/files-response.dto';
 import { ObjectStorageService } from './storage/object-storage.service';
-import { MAX_FILE_SIZE_BYTES } from './files.constants';
+import {
+  ALLOWED_FILE_EXTENSIONS,
+  ALLOWED_FILE_MIME_TYPES,
+  MAX_FILE_SIZE_BYTES,
+} from './files.constants';
 
 @Injectable()
 export class FilesService {
@@ -45,6 +49,21 @@ export class FilesService {
       throw new BadRequestException('File is too large');
     }
   }
+  private validateUploadFile(file: Express.Multer.File): string {
+    this.validateFileExists(file);
+
+    const extension = this.getFileExtension(file.originalname);
+
+    if (!ALLOWED_FILE_EXTENSIONS.has(extension)) {
+      throw new BadRequestException('File extension is not allowed');
+    }
+
+    if (!ALLOWED_FILE_MIME_TYPES.has(file.mimetype)) {
+      throw new BadRequestException('File MIME type is not allowed');
+    }
+
+    return extension;
+  }
 
   private async findOrganizationFile(user: AuthenticatedUser, fileId: string) {
     const file = await prismaErrorHandler(() =>
@@ -65,12 +84,9 @@ export class FilesService {
   }
 
   async uploadFile(user: AuthenticatedUser, file: Express.Multer.File) {
-    this.validateFileExists(file);
-
-    const extension = this.getFileExtension(file.originalname);
     const sha256 = this.getSha256(file.buffer);
     const fileId = randomUUID();
-
+    const extension = this.validateUploadFile(file);
     const storageKey = this.buildStorageKey(
       user.organizationId,
       fileId,
