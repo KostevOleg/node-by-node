@@ -25,11 +25,11 @@ import {
 } from '@nestjs/swagger';
 import { AccessTokenGuard } from 'src/auth/access-token.guard';
 import { FilesService } from './files.service';
-import { FileInterceptor } from '@nestjs/platform-express';
 import type { AuthenticatedRequest } from 'src/auth/types/authenticated-request';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { FilePageResponseDto, FileResponseDto } from './dto/files-response.dto';
 import type { Response } from 'express';
+import { FileUploadInterceptor } from './interceptors/file-upload.interceptor';
 
 @ApiTags('files')
 @UseGuards(AccessTokenGuard)
@@ -63,7 +63,7 @@ export class FilesController {
     status: 409,
     description: 'File already exists in this organization.',
   })
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileUploadInterceptor())
   upload(
     @Req() req: AuthenticatedRequest,
     @UploadedFile() file: Express.Multer.File,

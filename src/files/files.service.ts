@@ -12,6 +12,7 @@ import { serialize } from 'src/common/utils/serialize';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { FileResponseDto } from './dto/files-response.dto';
 import { ObjectStorageService } from './storage/object-storage.service';
+import { MAX_FILE_SIZE_BYTES } from './files.constants';
 
 @Injectable()
 export class FilesService {
@@ -39,6 +40,9 @@ export class FilesService {
 
     if (!file.buffer?.length) {
       throw new BadRequestException('File is empty');
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      throw new BadRequestException('File is too large');
     }
   }
 
