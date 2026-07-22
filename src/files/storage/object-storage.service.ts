@@ -8,7 +8,11 @@ import {
   S3Client,
   S3ServiceException,
 } from '@aws-sdk/client-s3';
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Readable } from 'node:stream';
 
@@ -22,9 +26,8 @@ export type StoredObject = {
 export class ObjectStorageService implements OnModuleInit {
   private readonly bucket: string;
   private readonly client: S3Client;
-
   constructor(private readonly configService: ConfigService) {
-    this.bucket = this.configService.getOrThrow<string>('S3_BUCKET');
+    this.bucket = configService.getOrThrow<string>('S3_BUCKET');
     this.client = new S3Client({
       endpoint: this.configService.getOrThrow<string>('S3_ENDPOINT'),
       region: this.configService.getOrThrow<string>('S3_REGION'),
@@ -37,11 +40,9 @@ export class ObjectStorageService implements OnModuleInit {
       ),
     });
   }
-
   async onModuleInit(): Promise<void> {
     await this.ensureBucketExists();
   }
-
   async putObject(
     key: string,
     body: Buffer,
@@ -56,27 +57,25 @@ export class ObjectStorageService implements OnModuleInit {
       }),
     );
   }
-
-  async getObject(key: string): Promise<StoredObject> {
+  async getObject(key: string) {
     const object = await this.client.send(
       new GetObjectCommand({
         Bucket: this.bucket,
         Key: key,
       }),
     );
-
     if (!(object.Body instanceof Readable)) {
-      throw new Error('S3 object body is not a Node.js readable stream.');
+      throw new InternalServerErrorException(
+        'S3 object body is not a Node.js readable stream.',
+      );
     }
-
     return {
       body: object.Body,
       contentType: object.ContentType,
       contentLength: object.ContentLength,
     };
   }
-
-  async deleteObject(key: string): Promise<void> {
+  async deleteObject(key: string) {
     await this.client.send(
       new DeleteObjectCommand({
         Bucket: this.bucket,
@@ -84,7 +83,6 @@ export class ObjectStorageService implements OnModuleInit {
       }),
     );
   }
-
   async objectExists(key: string): Promise<boolean> {
     try {
       await this.client.send(
@@ -93,29 +91,30 @@ export class ObjectStorageService implements OnModuleInit {
           Key: key,
         }),
       );
-
       return true;
-    } catch (error) {
-      if (this.isNotFoundError(error)) {
-        return false;
-      }
-
-      throw error;
+    } catch {
+      return false;
     }
   }
-
   private async ensureBucketExists(): Promise<void> {
     try {
-      await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
+      await this.client.send(
+        new HeadBucketCommand({
+          Bucket: this.bucket,
+        }),
+      );
     } catch (error) {
       if (!this.isNotFoundError(error)) {
         throw error;
       }
 
-      await this.client.send(new CreateBucketCommand({ Bucket: this.bucket }));
+      await this.client.send(
+        new CreateBucketCommand({
+          Bucket: this.bucket,
+        }),
+      );
     }
   }
-
   private isNotFoundError(error: unknown): boolean {
     return (
       error instanceof S3ServiceException &&

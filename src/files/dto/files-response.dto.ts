@@ -26,3 +26,14 @@ export class FileResponseDto {
   @Expose()
   createdAt: Date;
 }
+
+export class FilePageResponseDto {
+  @ApiProperty({ type: [FileResponseDto] })
+  data: FileResponseDto[];
+
+  @ApiProperty({
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    nullable: true,
+  })
+  nextCursor: string | null;
+}
