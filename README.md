@@ -1,8 +1,9 @@
 # Node by Node
 
 Node by Node is a NestJS REST API backed by PostgreSQL and Prisma. The API
-models organizations, users, sessions, conversations, and messages, and exposes
-CRUD endpoints for the main platform resources.
+models organizations, users, sessions, conversations, messages, and
+organization-scoped files, and exposes CRUD endpoints for the main platform
+resources.
 
 ## How to Run the Application
 
@@ -17,12 +18,14 @@ yarn start:dev
 Application URL: `http://localhost:3000`
 Swagger UI: `http://localhost:3000/api/docs`
 
-For local development, PostgreSQL must be running before the NestJS app starts.
-You can start the database with Docker:
+For local development, PostgreSQL, MinIO, and ClamAV must be running before file
+uploads can work. You can start the required Docker services with:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d postgres minio clamav
 ```
+
+On Windows local development, use `CLAMAV_HOST=127.0.0.1` in `.env`.
 
 Then apply migrations and optionally seed test data:
 
@@ -57,6 +60,7 @@ The public REST API contains CRUD endpoints for these resources:
 | Sessions | `/sessions` | User session records. Token hashes are not returned. |
 | Conversations | `/conversations` | Conversation records owned by users. |
 | Messages | `/messages` | Messages that belong to conversations. |
+| Files | `/files` | Organization-scoped upload, list, download, and delete. |
 
 Collection endpoints support cursor pagination with:
 
@@ -144,8 +148,9 @@ docker compose up --build
 docker compose down
 ```
 
-Docker starts the NestJS app, PostgreSQL, Redis and RabbitMQ.
+Docker starts the NestJS app, PostgreSQL, Redis, RabbitMQ, MinIO, and ClamAV.
 RabbitMQ UI is available at `http://localhost:15672`.
+MinIO Console is available at `http://localhost:9001`.
 
 ## How to Run Tests
 
