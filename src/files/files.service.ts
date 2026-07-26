@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
+import { TextDecoder } from 'node:util';
 import { AuthenticatedUser } from 'src/auth/types/authenticated-request';
 import { prismaErrorHandler } from 'src/common/utils/prisma-error.handler';
 import { serialize } from 'src/common/utils/serialize';
@@ -19,12 +20,14 @@ import {
   MAX_FILE_SIZE_BYTES,
 } from './files.constants';
 import { fileTypeFromBuffer } from 'file-type';
+import { VirusScanService } from './virus-scan.service';
 
 @Injectable()
 export class FilesService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly objectStorageService: ObjectStorageService,
+    private readonly virusService: VirusScanService,
   ) {}
   private buildStorageKey(
     organizationId: string,
@@ -101,6 +104,16 @@ export class FilesService {
     return extension;
   }
 
+  private isPlainText(buffer: Buffer): boolean {
+    try {
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+
+      return !/[\x00-\x08\x0B\x0E-\x1F]/.test(text);
+    } catch {
+      return false;
+    }
+  }
+
   private async findOrganizationFile(user: AuthenticatedUser, fileId: string) {
     const file = await prismaErrorHandler(() =>
       this.prismaService.organizationFile.findFirst({
@@ -146,9 +159,18 @@ export class FilesService {
       throw new ConflictException('File already exists in this organization');
     }
     const detected = await fileTypeFromBuffer(file.buffer);
-    if (!detected || !ALLOWED_FILE_MIME_TYPES.has(detected.mime)) {
+    const isTextFile =
+      extension === '.txt' &&
+      file.mimetype === 'text/plain' &&
+      this.isPlainText(file.buffer);
+
+    if (
+      !isTextFile &&
+      (!detected || !ALLOWED_FILE_MIME_TYPES.has(detected.mime))
+    ) {
       throw new BadRequestException('File content type is not allowed');
     }
+    await this.virusService.assertClean(file.buffer);
 
     await this.objectStorageService.putObject(
       storageKey,
