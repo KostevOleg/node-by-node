@@ -21,6 +21,8 @@ describe('env validation schema', () => {
     S3_ACCESS_KEY: 'minio',
     S3_SECRET_KEY: 'minio123',
     S3_FORCE_PATH_STYLE: true,
+    CLAMAV_HOST: 'localhost',
+    CLAMAV_PORT: 3310,
   };
 
   const validateEnv = (env: Record<string, unknown>) =>

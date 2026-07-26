@@ -23,4 +23,6 @@ export const validationSchema = Joi.object({
   S3_ACCESS_KEY: Joi.string().required(),
   S3_SECRET_KEY: Joi.string().required(),
   S3_FORCE_PATH_STYLE: Joi.boolean().default(true),
+  CLAMAV_HOST: Joi.string().required(),
+  CLAMAV_PORT: Joi.number().port().required(),
 });
