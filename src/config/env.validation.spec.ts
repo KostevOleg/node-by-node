@@ -15,6 +15,14 @@ describe('env validation schema', () => {
     REDIS_PORT: 6379,
     RABBITMQ_URL: 'amqp://rabbitmq:5672',
     JWT_SECRET: 'test-secret',
+    S3_ENDPOINT: 'http://localhost:9000',
+    S3_REGION: 'us-east-1',
+    S3_BUCKET: 'node-by-node-files',
+    S3_ACCESS_KEY: 'minio',
+    S3_SECRET_KEY: 'minio123',
+    S3_FORCE_PATH_STYLE: true,
+    CLAMAV_HOST: 'localhost',
+    CLAMAV_PORT: 3310,
   };
 
   const validateEnv = (env: Record<string, unknown>) =>

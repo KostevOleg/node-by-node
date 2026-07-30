@@ -6,8 +6,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { JwtService } from '@nestjs/jwt';
-import { Request } from 'express';
 import { prismaErrorHandler } from 'src/common/utils/prisma-error.handler';
+import { AuthenticatedRequest } from './types/authenticated-request';
 type AccessTokenPayload = {
   sub: string;
   email: string;
@@ -23,7 +23,7 @@ export class AccessTokenGuard implements CanActivate {
   ) {}
   async canActivate(context: ExecutionContext): Promise<boolean> {
     let payload: AccessTokenPayload;
-    const request: Request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     if (!request) {
       throw new UnauthorizedException('Unauthorized');
     }
@@ -70,7 +70,11 @@ export class AccessTokenGuard implements CanActivate {
     if (!user) {
       throw new UnauthorizedException('Unauthorized');
     }
-
+    request.user = {
+      id: user.id,
+      organizationId: user.organizationId,
+      email: user.email,
+    };
     return true;
   }
 }
