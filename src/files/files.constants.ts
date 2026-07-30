@@ -19,6 +19,19 @@ export const ALLOWED_FILE_MIME_TYPES = new Set([
   'text/plain',
 ]);
 
+export const FILE_EXTENSION_MIME_TYPES = new Map<string, string[]>([
+  ['.pdf', ['application/pdf']],
+  ['.doc', ['application/msword']],
+  [
+    '.docx',
+    ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  ],
+  ['.png', ['image/png']],
+  ['.jpg', ['image/jpeg']],
+  ['.jpeg', ['image/jpeg']],
+  ['.txt', ['text/plain']],
+]);
+
 export const DANGEROUS_FILE_EXTENSIONS = new Set([
   '.php',
   '.exe',

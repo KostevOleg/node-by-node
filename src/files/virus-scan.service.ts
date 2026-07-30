@@ -13,10 +13,35 @@ export class VirusScanService {
   assertClean(buffer: Buffer): Promise<void> {
     const host = this.configService.getOrThrow<string>('CLAMAV_HOST');
     const port = this.configService.getOrThrow<number>('CLAMAV_PORT');
+    const timeoutMs = this.configService.get<number>(
+      'CLAMAV_TIMEOUT_MS',
+      10_000,
+    );
 
     return new Promise((resolve, reject) => {
       const socket = net.createConnection({ host, port });
       const responseChunks: Buffer[] = [];
+      let settled = false;
+
+      const fail = (error: Error) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        reject(error);
+      };
+
+      const succeed = () => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        resolve();
+      };
+
+      socket.setTimeout(timeoutMs);
 
       socket.on('connect', () => {
         const size = Buffer.alloc(4);
@@ -33,24 +58,29 @@ export class VirusScanService {
         responseChunks.push(chunk);
       });
 
+      socket.on('timeout', () => {
+        socket.destroy();
+        fail(new ServiceUnavailableException('Virus scanner timed out'));
+      });
+
       socket.on('error', () => {
-        reject(new ServiceUnavailableException('Virus scanner is unavailable'));
+        fail(new ServiceUnavailableException('Virus scanner is unavailable'));
       });
 
       socket.on('end', () => {
         const response = Buffer.concat(responseChunks).toString('utf8');
 
         if (response.includes('FOUND')) {
-          reject(new BadRequestException('File failed virus scan'));
+          fail(new BadRequestException('File failed virus scan'));
           return;
         }
 
         if (response.includes('OK')) {
-          resolve();
+          succeed();
           return;
         }
 
-        reject(new ServiceUnavailableException('Virus scan failed'));
+        fail(new ServiceUnavailableException('Virus scan failed'));
       });
     });
   }

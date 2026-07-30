@@ -4,6 +4,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { fileTypeFromBuffer } from 'file-type';
 import { Readable } from 'node:stream';
 import { AuthenticatedUser } from 'src/auth/types/authenticated-request';
@@ -154,6 +155,17 @@ describe('FilesService', () => {
     expect(objectStorageService.putObject).toHaveBeenCalled();
   });
 
+  it('rejects missing files before hashing', async () => {
+    await expect(
+      service.uploadFile(user, undefined as unknown as Express.Multer.File),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(fileTypeFromBuffer).not.toHaveBeenCalled();
+    expect(prismaService.organizationFile.findFirst).not.toHaveBeenCalled();
+    expect(virusScanService.assertClean).not.toHaveBeenCalled();
+    expect(objectStorageService.putObject).not.toHaveBeenCalled();
+  });
+
   it('rejects duplicate files in the same organization', async () => {
     prismaService.organizationFile.findFirst.mockResolvedValue({
       id: 'existing-file-id',
@@ -165,6 +177,30 @@ describe('FilesService', () => {
 
     expect(virusScanService.assertClean).not.toHaveBeenCalled();
     expect(objectStorageService.putObject).not.toHaveBeenCalled();
+  });
+
+  it('cleans up storage and returns conflict when database dedup wins a race', async () => {
+    const upload = makeUpload();
+
+    prismaService.organizationFile.findFirst.mockResolvedValue(null);
+    prismaService.organizationFile.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        clientVersion: 'test',
+        code: 'P2002',
+        meta: {
+          target: ['organizationId', 'sha256'],
+        },
+      }),
+    );
+
+    await expect(service.uploadFile(user, upload)).rejects.toThrow(
+      ConflictException,
+    );
+
+    expect(objectStorageService.putObject).toHaveBeenCalled();
+    expect(objectStorageService.deleteObject).toHaveBeenCalledWith(
+      expect.stringContaining(`organizations/${user.organizationId}/files/`),
+    );
   });
 
   it('rejects dangerous double extensions', async () => {
@@ -181,6 +217,28 @@ describe('FilesService', () => {
     expect(prismaService.organizationFile.findFirst).not.toHaveBeenCalled();
     expect(virusScanService.assertClean).not.toHaveBeenCalled();
     expect(objectStorageService.putObject).not.toHaveBeenCalled();
+  });
+
+  it('rejects files whose detected content type does not match the extension', async () => {
+    jest.mocked(fileTypeFromBuffer).mockResolvedValue({
+      ext: 'jpg',
+      mime: 'image/jpeg',
+    });
+
+    await expect(
+      service.uploadFile(
+        user,
+        makeUpload({
+          originalname: 'avatar.png',
+          mimetype: 'image/png',
+          buffer: Buffer.from('jpeg bytes'),
+        }),
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(virusScanService.assertClean).not.toHaveBeenCalled();
+    expect(objectStorageService.putObject).not.toHaveBeenCalled();
+    expect(prismaService.organizationFile.create).not.toHaveBeenCalled();
   });
 
   it('lists only current organization files', async () => {
@@ -257,6 +315,11 @@ describe('FilesService', () => {
     });
     expect(objectStorageService.deleteObject).toHaveBeenCalledWith(
       fileRecord.storageKey,
+    );
+    expect(
+      objectStorageService.deleteObject.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      prismaService.organizationFile.update.mock.invocationCallOrder[0],
     );
   });
 });

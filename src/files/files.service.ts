@@ -17,6 +17,7 @@ import {
   ALLOWED_FILE_EXTENSIONS,
   ALLOWED_FILE_MIME_TYPES,
   DANGEROUS_FILE_EXTENSIONS,
+  FILE_EXTENSION_MIME_TYPES,
   MAX_FILE_SIZE_BYTES,
 } from './files.constants';
 import { fileTypeFromBuffer } from 'file-type';
@@ -108,10 +109,40 @@ export class FilesService {
     try {
       const text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
 
-      return !/[\x00-\x08\x0B\x0E-\x1F]/.test(text);
+      return [...text].every((char) => {
+        const charCode = char.charCodeAt(0);
+
+        return (
+          charCode === 9 || charCode === 10 || charCode === 13 || charCode >= 32
+        );
+      });
     } catch {
       return false;
     }
+  }
+
+  private getExpectedMimeTypes(extension: string): string[] {
+    return FILE_EXTENSION_MIME_TYPES.get(extension) ?? [];
+  }
+
+  private getVerifiedMimeType(
+    extension: string,
+    claimedMimeType: string,
+    detectedMimeType?: string,
+  ): string {
+    const expectedMimeTypes = this.getExpectedMimeTypes(extension);
+
+    if (!expectedMimeTypes.includes(claimedMimeType)) {
+      throw new BadRequestException('File MIME type does not match extension');
+    }
+
+    if (!detectedMimeType || !expectedMimeTypes.includes(detectedMimeType)) {
+      throw new BadRequestException(
+        'File content type does not match extension',
+      );
+    }
+
+    return detectedMimeType;
   }
 
   private async findOrganizationFile(user: AuthenticatedUser, fileId: string) {
@@ -133,9 +164,9 @@ export class FilesService {
   }
 
   async uploadFile(user: AuthenticatedUser, file: Express.Multer.File) {
+    const extension = this.validateUploadFile(file);
     const sha256 = this.getSha256(file.buffer);
     const fileId = randomUUID();
-    const extension = this.validateUploadFile(file);
     const storageKey = this.buildStorageKey(
       user.organizationId,
       fileId,
@@ -164,18 +195,16 @@ export class FilesService {
       file.mimetype === 'text/plain' &&
       this.isPlainText(file.buffer);
 
-    if (
-      !isTextFile &&
-      (!detected || !ALLOWED_FILE_MIME_TYPES.has(detected.mime))
-    ) {
-      throw new BadRequestException('File content type is not allowed');
-    }
+    const verifiedMimeType = isTextFile
+      ? 'text/plain'
+      : this.getVerifiedMimeType(extension, file.mimetype, detected?.mime);
+
     await this.virusService.assertClean(file.buffer);
 
     await this.objectStorageService.putObject(
       storageKey,
       file.buffer,
-      file.mimetype,
+      verifiedMimeType,
     );
 
     try {
@@ -187,7 +216,7 @@ export class FilesService {
             uploadedById: user.id,
             originalName: file.originalname,
             storageKey,
-            mimeType: file.mimetype,
+            mimeType: verifiedMimeType,
             extension,
             size: file.size,
             sha256,
@@ -198,6 +227,9 @@ export class FilesService {
       return serialize(FileResponseDto, createdFile);
     } catch (error) {
       await this.objectStorageService.deleteObject(storageKey);
+      if (error instanceof ConflictException) {
+        throw new ConflictException('File already exists in this organization');
+      }
       throw error;
     }
   }
@@ -247,6 +279,8 @@ export class FilesService {
   async deleteFile(user: AuthenticatedUser, fileId: string) {
     const file = await this.findOrganizationFile(user, fileId);
 
+    await this.objectStorageService.deleteObject(file.storageKey);
+
     await prismaErrorHandler(() =>
       this.prismaService.organizationFile.update({
         where: { id: file.id },
@@ -255,7 +289,5 @@ export class FilesService {
         },
       }),
     );
-
-    await this.objectStorageService.deleteObject(file.storageKey);
   }
 }

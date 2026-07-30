@@ -25,4 +25,5 @@ export const validationSchema = Joi.object({
   S3_FORCE_PATH_STYLE: Joi.boolean().default(true),
   CLAMAV_HOST: Joi.string().required(),
   CLAMAV_PORT: Joi.number().port().required(),
+  CLAMAV_TIMEOUT_MS: Joi.number().integer().positive().default(10000),
 });
