@@ -8,12 +8,14 @@ export const ALLOWED_FILE_EXTENSIONS = new Set([
   '.jpg',
   '.jpeg',
   '.txt',
+  '.xlsx',
 ]);
 
 export const ALLOWED_FILE_MIME_TYPES = new Set([
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'image/png',
   'image/jpeg',
   'text/plain',
@@ -25,6 +27,10 @@ export const FILE_EXTENSION_MIME_TYPES = new Map<string, string[]>([
   [
     '.docx',
     ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  ],
+  [
+    '.xlsx',
+    ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
   ],
   ['.png', ['image/png']],
   ['.jpg', ['image/jpeg']],

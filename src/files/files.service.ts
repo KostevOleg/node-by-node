@@ -22,13 +22,14 @@ import {
 } from './files.constants';
 import { fileTypeFromBuffer } from 'file-type';
 import { VirusScanService } from './virus-scan.service';
-
+import { FileProcessingProducer } from 'src/file-processing/file-processing.producer';
 @Injectable()
 export class FilesService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly objectStorageService: ObjectStorageService,
     private readonly virusService: VirusScanService,
+    private readonly fileProcessingProducer: FileProcessingProducer,
   ) {}
   private buildStorageKey(
     organizationId: string,
@@ -189,6 +190,7 @@ export class FilesService {
     if (duplicate) {
       throw new ConflictException('File already exists in this organization');
     }
+
     const detected = await fileTypeFromBuffer(file.buffer);
     const isTextFile =
       extension === '.txt' &&
@@ -223,6 +225,10 @@ export class FilesService {
           },
         }),
       );
+
+      if (extension === '.xlsx') {
+        await this.fileProcessingProducer.enqueueFileProcessingJob(createdFile);
+      }
 
       return serialize(FileResponseDto, createdFile);
     } catch (error) {
