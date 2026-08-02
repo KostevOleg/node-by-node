@@ -2346,6 +2346,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/amqplib@npm:^0.10.8":
+  version: 0.10.8
+  resolution: "@types/amqplib@npm:0.10.8"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10c0/9c5ab2e22f2b8dc2ace235d520bbae9453a0f4152b4f84ffa15a313f8840fe31bbf8b454e036f168a178cc44ed73bd3492e9c9cee425e3fcfef8cd5073141bfa
+  languageName: node
+  linkType: hard
+
 "@types/babel__core@npm:^7.20.5":
   version: 7.20.5
   resolution: "@types/babel__core@npm:7.20.5"
@@ -3267,6 +3276,13 @@ __metadata:
     json-schema-traverse: "npm:^1.0.0"
     require-from-string: "npm:^2.0.2"
   checksum: 10c0/5df9a1c8f83863cde1bd3a9ddb426f599718f88e3dc9153616c79fb28e0be455335830d7f21d745576519f057b371352daa31047b6a33d7036fe08777d60cf2a
+  languageName: node
+  linkType: hard
+
+"amqplib@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "amqplib@npm:2.0.1"
+  checksum: 10c0/4de6dd3ac92bf59c5d7f00c4948a44288fca1a0abeae8f038c037dfc94bc485fc8c16c6d43759b7e50319b43aa0aff18b8b7566b2b3fbf25b3bf7039b80b3537
   languageName: node
   linkType: hard
 
@@ -6662,6 +6678,7 @@ __metadata:
     "@nestjs/testing": "npm:^11.0.1"
     "@prisma/adapter-pg": "npm:^7.8.0"
     "@prisma/client": "npm:^7.8.0"
+    "@types/amqplib": "npm:^0.10.8"
     "@types/bcrypt": "npm:^6"
     "@types/express": "npm:^5.0.0"
     "@types/jest": "npm:^30.0.0"
@@ -6669,6 +6686,7 @@ __metadata:
     "@types/node": "npm:^22.10.7"
     "@types/pg": "npm:^8"
     "@types/supertest": "npm:^6.0.2"
+    amqplib: "npm:^2.0.1"
     bcrypt: "npm:^6.0.0"
     class-transformer: "npm:^0.5.1"
     class-validator: "npm:^0.15.1"
