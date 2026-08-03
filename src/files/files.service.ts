@@ -23,6 +23,11 @@ import {
 import { fileTypeFromBuffer } from 'file-type';
 import { VirusScanService } from './virus-scan.service';
 import { FileProcessingProducer } from 'src/file-processing/file-processing.producer';
+
+type UploadFileOptions = {
+  processSales: boolean;
+};
+
 @Injectable()
 export class FilesService {
   constructor(
@@ -164,8 +169,17 @@ export class FilesService {
     return file;
   }
 
-  async uploadFile(user: AuthenticatedUser, file: Express.Multer.File) {
+  async uploadFile(
+    user: AuthenticatedUser,
+    file: Express.Multer.File,
+    options: UploadFileOptions = { processSales: false },
+  ) {
     const extension = this.validateUploadFile(file);
+
+    if (options.processSales && extension !== '.xlsx') {
+      throw new BadRequestException('Sales processing requires an .xlsx file');
+    }
+
     const sha256 = this.getSha256(file.buffer);
     const fileId = randomUUID();
     const storageKey = this.buildStorageKey(
@@ -226,7 +240,7 @@ export class FilesService {
         }),
       );
 
-      if (extension === '.xlsx') {
+      if (options.processSales) {
         await this.fileProcessingProducer.enqueueFileProcessingJob(createdFile);
       }
 

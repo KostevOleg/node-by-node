@@ -30,6 +30,7 @@ import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { FilePageResponseDto, FileResponseDto } from './dto/files-response.dto';
 import type { Response } from 'express';
 import { FileUploadInterceptor } from './interceptors/file-upload.interceptor';
+import { UploadFileQueryDto } from './dto/upload-file-query.dto';
 
 @ApiTags('files')
 @UseGuards(AccessTokenGuard)
@@ -66,9 +67,12 @@ export class FilesController {
   @UseInterceptors(FileUploadInterceptor())
   upload(
     @Req() req: AuthenticatedRequest,
+    @Query() query: UploadFileQueryDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    return this.filesService.uploadFile(req.user, file);
+    return this.filesService.uploadFile(req.user, file, {
+      processSales: query.processSales ?? false,
+    });
   }
 
   @Get(':id/download')
