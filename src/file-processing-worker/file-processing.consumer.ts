@@ -15,7 +15,6 @@ import {
   RABBITMQ_EXCHANGE,
   RABBITMQ_MAX_PROCESSING_ATTEMPTS,
   RABBITMQ_QUEUE,
-  RABBITMQ_RETRY_ROUTING_KEY,
 } from 'src/queue/rabbitmq.constants';
 import { assertFileProcessingTopology } from 'src/queue/rabbitmq.topology';
 import { ObjectStorageService } from 'src/files/storage/object-storage.service';
@@ -145,7 +144,7 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
   }
 
   private async streamToBuffer(stream: Readable): Promise<Buffer> {
-    const chunks: Buffer[] = [];
+    const chunks: Uint8Array[] = [];
 
     for await (const chunk of stream) {
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -213,8 +212,7 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
     const attempts = await this.incrementJobAttempts(jobMessage, error);
     if (attempts < RABBITMQ_MAX_PROCESSING_ATTEMPTS) {
       await this.markJobAsPending(jobMessage, error);
-      this.publishMessage(message, RABBITMQ_RETRY_ROUTING_KEY);
-      this.channel?.ack(message);
+      this.channel?.nack(message, false, false);
       return;
     }
 
@@ -253,10 +251,19 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
     return job.attempts;
   }
   private publishMessage(message: ConsumeMessage, routingKey: string): void {
+    const contentType =
+      typeof message.properties.contentType === 'string'
+        ? message.properties.contentType
+        : undefined;
+    const correlationId =
+      typeof message.properties.correlationId === 'string'
+        ? message.properties.correlationId
+        : undefined;
+
     this.channel?.publish(RABBITMQ_EXCHANGE, routingKey, message.content, {
       persistent: true,
-      contentType: message.properties.contentType,
-      correlationId: message.properties.correlationId,
+      contentType,
+      correlationId,
     });
   }
   private async markJobAsPending(
@@ -280,5 +287,4 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
       },
     });
   }
-
 }

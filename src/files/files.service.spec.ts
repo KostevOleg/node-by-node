@@ -12,28 +12,35 @@ import { PrismaService } from 'src/prisma/prisma-service';
 import { FilesService } from './files.service';
 import { ObjectStorageService } from './storage/object-storage.service';
 import { VirusScanService } from './virus-scan.service';
+import { FileProcessingProducer } from 'src/file-processing/file-processing.producer';
 
 jest.mock('file-type', () => ({
   fileTypeFromBuffer: jest.fn(),
 }));
 
+const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
+
 const prismaService = {
   organizationFile: {
-    create: jest.fn(),
-    findFirst: jest.fn(),
-    findMany: jest.fn(),
-    update: jest.fn(),
+    create: mockPrismaFn(),
+    findFirst: mockPrismaFn(),
+    findMany: mockPrismaFn(),
+    update: mockPrismaFn(),
   },
 };
 
 const objectStorageService = {
-  putObject: jest.fn(),
-  getObject: jest.fn(),
-  deleteObject: jest.fn(),
+  putObject: mockPrismaFn(),
+  getObject: mockPrismaFn(),
+  deleteObject: mockPrismaFn(),
 };
 
 const virusScanService = {
-  assertClean: jest.fn(),
+  assertClean: mockPrismaFn(),
+};
+
+const fileProcessingProducer = {
+  enqueueFileProcessingJob: mockPrismaFn(),
 };
 
 describe('FilesService', () => {
@@ -78,6 +85,7 @@ describe('FilesService', () => {
       prismaService as unknown as PrismaService,
       objectStorageService as unknown as ObjectStorageService,
       virusScanService as unknown as VirusScanService,
+      fileProcessingProducer as unknown as FileProcessingProducer,
     );
     jest.mocked(fileTypeFromBuffer).mockResolvedValue({
       ext: 'pdf',
@@ -310,7 +318,7 @@ describe('FilesService', () => {
     expect(prismaService.organizationFile.update).toHaveBeenCalledWith({
       where: { id: fileRecord.id },
       data: {
-        deletedAt: expect.any(Date) as Date,
+        deletedAt: expect.any(Date) as unknown as Date,
       },
     });
     expect(objectStorageService.deleteObject).toHaveBeenCalledWith(

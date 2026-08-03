@@ -109,7 +109,11 @@ export class SalesExcelParserService {
   ): number {
     const value = this.unwrapCellValue(cell.value);
     const numberValue =
-      typeof value === 'number' ? value : Number(String(value).trim());
+      typeof value === 'number'
+        ? value
+        : typeof value === 'string'
+          ? Number(value.trim())
+          : Number.NaN;
 
     if (!Number.isFinite(numberValue) || numberValue < 0) {
       throw new BadRequestException(
@@ -121,9 +125,17 @@ export class SalesExcelParserService {
   }
 
   private normalizeHeader(value: ExcelJS.CellValue): string {
-    return String(this.unwrapCellValue(value) ?? '')
-      .trim()
-      .toLowerCase();
+    const unwrapped = this.unwrapCellValue(value);
+
+    if (
+      typeof unwrapped !== 'string' &&
+      typeof unwrapped !== 'number' &&
+      typeof unwrapped !== 'boolean'
+    ) {
+      return '';
+    }
+
+    return String(unwrapped).trim().toLowerCase();
   }
 
   private unwrapCellValue(value: ExcelJS.CellValue): unknown {
@@ -148,7 +160,7 @@ export class SalesExcelParserService {
     let hasValue = false;
 
     row.eachCell((cell) => {
-      if (String(this.unwrapCellValue(cell.value) ?? '').trim() !== '') {
+      if (this.normalizeHeader(cell.value) !== '') {
         hasValue = true;
       }
     });
