@@ -5,12 +5,14 @@ import { PrismaService } from 'src/prisma/prisma-service';
 import { UsersService } from './users.service';
 import { userPublicSelect } from './user.select';
 
+const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
+
 const prismaService = {
   user: {
-    create: jest.fn(),
-    findFirst: jest.fn(),
-    findMany: jest.fn(),
-    update: jest.fn(),
+    create: mockPrismaFn(),
+    findFirst: mockPrismaFn(),
+    findMany: mockPrismaFn(),
+    update: mockPrismaFn(),
   },
 };
 
@@ -62,7 +64,7 @@ describe('UsersService', () => {
       data: {
         organizationId: data.organizationId,
         email: data.email,
-        passwordHash: expect.any(String) as string,
+        passwordHash: expect.any(String) as unknown as string,
         firstName: data.firstName,
         lastName: data.lastName,
         status: data.status,
@@ -190,7 +192,7 @@ describe('UsersService', () => {
     expect(prismaService.user.update).toHaveBeenCalledWith({
       where: { id: 'user-id' },
       data: {
-        deletedAt: expect.any(Date) as Date,
+        deletedAt: expect.any(Date) as unknown as Date,
       },
     });
   });

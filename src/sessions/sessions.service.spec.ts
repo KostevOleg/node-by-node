@@ -5,12 +5,14 @@ import { PrismaService } from 'src/prisma/prisma-service';
 import { SessionsService } from './sessions.service';
 import { sessionPublicSelect } from './session.select';
 
+const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
+
 const prismaService = {
   session: {
-    create: jest.fn(),
-    findUnique: jest.fn(),
-    findMany: jest.fn(),
-    update: jest.fn(),
+    create: mockPrismaFn(),
+    findUnique: mockPrismaFn(),
+    findMany: mockPrismaFn(),
+    update: mockPrismaFn(),
   },
 };
 
@@ -139,7 +141,7 @@ describe('SessionsService', () => {
       where: { id: 'session-id' },
       data: {
         status: SessionStatus.REVOKED,
-        revokedAt: expect.any(Date) as Date,
+        revokedAt: expect.any(Date) as unknown as Date,
       },
     });
   });
