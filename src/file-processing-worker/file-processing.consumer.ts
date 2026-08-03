@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   OnModuleDestroy,
@@ -10,10 +11,13 @@ import amqp, { Channel, ChannelModel, ConsumeMessage } from 'amqplib';
 import { FileProcessingJobMessage } from 'src/file-processing/messages/file-processing-job.message';
 import { PrismaService } from 'src/prisma/prisma-service';
 import {
+  RABBITMQ_DLQ_ROUTING_KEY,
   RABBITMQ_EXCHANGE,
+  RABBITMQ_MAX_PROCESSING_ATTEMPTS,
   RABBITMQ_QUEUE,
-  RABBITMQ_ROUTING_KEY,
+  RABBITMQ_RETRY_ROUTING_KEY,
 } from 'src/queue/rabbitmq.constants';
+import { assertFileProcessingTopology } from 'src/queue/rabbitmq.topology';
 import { ObjectStorageService } from 'src/files/storage/object-storage.service';
 import { SalesExcelParserService } from './sales-excel-parser.service';
 import { Readable } from 'node:stream';
@@ -37,19 +41,7 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
     this.connection = await amqp.connect(url);
     this.channel = await this.connection.createChannel();
 
-    await this.channel.assertExchange(RABBITMQ_EXCHANGE, 'direct', {
-      durable: true,
-    });
-
-    await this.channel.assertQueue(RABBITMQ_QUEUE, {
-      durable: true,
-    });
-
-    await this.channel.bindQueue(
-      RABBITMQ_QUEUE,
-      RABBITMQ_EXCHANGE,
-      RABBITMQ_ROUTING_KEY,
-    );
+    await assertFileProcessingTopology(this.channel);
 
     await this.channel.prefetch(1);
     await this.channel.consume(RABBITMQ_QUEUE, (message) => {
@@ -73,17 +65,38 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
 
     try {
       jobMessage = this.parseMessage(message);
-      await this.markJobAsProcessing(jobMessage);
 
       const job = await this.getProcessingJob(jobMessage);
+
+      if (job.status === FileProcessingStatus.COMPLETED) {
+        this.channel.ack(message);
+        this.logger.log(
+          `Skipping already completed file processing job ${jobMessage.jobId}`,
+        );
+        return;
+      }
+
+      if (job.status === FileProcessingStatus.FAILED) {
+        this.channel.ack(message);
+        this.logger.log(
+          `Skipping already failed file processing job ${jobMessage.jobId}`,
+        );
+        return;
+      }
+
+      await this.markJobAsProcessing(jobMessage);
+
       const object = await this.objectStorageService.getObject(
         job.file.storageKey,
       );
       const buffer = await this.streamToBuffer(object.body);
       const result = await this.salesExcelParserService.parse(buffer);
 
-      await this.prismaService.fileProcessingJob.update({
-        where: { id: jobMessage.jobId },
+      await this.prismaService.fileProcessingJob.updateMany({
+        where: {
+          id: jobMessage.jobId,
+          status: FileProcessingStatus.PROCESSING,
+        },
         data: {
           status: FileProcessingStatus.COMPLETED,
           totalQuantity: result.totalQuantity,
@@ -95,8 +108,7 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
       this.channel.ack(message);
       this.logger.log(`Processed file processing job ${jobMessage.jobId}`);
     } catch (error) {
-      await this.markJobAsFailed(jobMessage, error);
-      this.channel.nack(message, false, false);
+      await this.handleProcessingFailure(message, jobMessage, error);
     }
   }
 
@@ -170,7 +182,12 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
 
     if (message) {
       await this.prismaService.fileProcessingJob.updateMany({
-        where: { id: message.jobId },
+        where: {
+          id: message.jobId,
+          status: {
+            not: FileProcessingStatus.COMPLETED,
+          },
+        },
         data: {
           status: FileProcessingStatus.FAILED,
           failedAt: new Date(),
@@ -181,4 +198,87 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
 
     this.logger.error('File processing job failed', errorMessage);
   }
+
+  private async handleProcessingFailure(
+    message: ConsumeMessage,
+    jobMessage: FileProcessingJobMessage | undefined,
+    error: unknown,
+  ): Promise<void> {
+    if (this.isPermanentProcessingError(error)) {
+      await this.markJobAsFailed(jobMessage, error);
+      this.channel?.ack(message);
+      return;
+    }
+
+    const attempts = await this.incrementJobAttempts(jobMessage, error);
+    if (attempts < RABBITMQ_MAX_PROCESSING_ATTEMPTS) {
+      await this.markJobAsPending(jobMessage, error);
+      this.publishMessage(message, RABBITMQ_RETRY_ROUTING_KEY);
+      this.channel?.ack(message);
+      return;
+    }
+
+    await this.markJobAsFailed(jobMessage, error);
+    this.publishMessage(message, RABBITMQ_DLQ_ROUTING_KEY);
+    this.channel?.ack(message);
+  }
+
+  private isPermanentProcessingError(error: unknown): boolean {
+    return error instanceof BadRequestException;
+  }
+
+  private async incrementJobAttempts(
+    message: FileProcessingJobMessage | undefined,
+    error: unknown,
+  ): Promise<number> {
+    if (!message) {
+      return 1;
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    const job = await this.prismaService.fileProcessingJob.update({
+      where: { id: message.jobId },
+      data: {
+        attempts: {
+          increment: 1,
+        },
+        errorMessage,
+      },
+      select: {
+        attempts: true,
+      },
+    });
+
+    return job.attempts;
+  }
+  private publishMessage(message: ConsumeMessage, routingKey: string): void {
+    this.channel?.publish(RABBITMQ_EXCHANGE, routingKey, message.content, {
+      persistent: true,
+      contentType: message.properties.contentType,
+      correlationId: message.properties.correlationId,
+    });
+  }
+  private async markJobAsPending(
+    message: FileProcessingJobMessage | undefined,
+    error: unknown,
+  ): Promise<void> {
+    if (!message) {
+      return;
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    await this.prismaService.fileProcessingJob.updateMany({
+      where: {
+        id: message.jobId,
+        status: FileProcessingStatus.PROCESSING,
+      },
+      data: {
+        status: FileProcessingStatus.PENDING,
+        errorMessage,
+      },
+    });
+  }
+
 }

@@ -7,11 +7,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import amqp, { Channel, ChannelModel } from 'amqplib';
 import { FileProcessingJobMessage } from 'src/file-processing/messages/file-processing-job.message';
-import {
-  RABBITMQ_EXCHANGE,
-  RABBITMQ_QUEUE,
-  RABBITMQ_ROUTING_KEY,
-} from './rabbitmq.constants';
+import { RABBITMQ_EXCHANGE, RABBITMQ_ROUTING_KEY } from './rabbitmq.constants';
+import { assertFileProcessingTopology } from './rabbitmq.topology';
 
 @Injectable()
 export class RabbitMqPublisher implements OnModuleInit, OnModuleDestroy {
@@ -26,19 +23,7 @@ export class RabbitMqPublisher implements OnModuleInit, OnModuleDestroy {
     this.connection = await amqp.connect(url);
     this.channel = await this.connection.createChannel();
 
-    await this.channel.assertExchange(RABBITMQ_EXCHANGE, 'direct', {
-      durable: true,
-    });
-
-    await this.channel.assertQueue(RABBITMQ_QUEUE, {
-      durable: true,
-    });
-
-    await this.channel.bindQueue(
-      RABBITMQ_QUEUE,
-      RABBITMQ_EXCHANGE,
-      RABBITMQ_ROUTING_KEY,
-    );
+    await assertFileProcessingTopology(this.channel);
   }
 
   publishFileProcessingJob(message: FileProcessingJobMessage): void {

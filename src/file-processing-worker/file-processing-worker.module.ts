@@ -13,7 +13,6 @@ import { SalesExcelParserService } from './sales-excel-parser.service';
       validationSchema,
     }),
     PrismaModule,
-    ObjectStorageService,
   ],
   providers: [
     FileProcessingConsumer,
