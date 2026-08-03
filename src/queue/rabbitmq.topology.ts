@@ -19,6 +19,10 @@ export async function assertFileProcessingTopology(
 
   await channel.assertQueue(RABBITMQ_QUEUE, {
     durable: true,
+    arguments: {
+      'x-dead-letter-exchange': RABBITMQ_EXCHANGE,
+      'x-dead-letter-routing-key': RABBITMQ_RETRY_ROUTING_KEY,
+    },
   });
 
   await channel.bindQueue(
