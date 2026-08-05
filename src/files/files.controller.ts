@@ -19,6 +19,9 @@ import {
 import {
   ApiOperation,
   ApiParam,
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiQuery,
   ApiResponse,
   ApiTags,
@@ -33,6 +36,7 @@ import { FileUploadInterceptor } from './interceptors/file-upload.interceptor';
 import { UploadFileQueryDto } from './dto/upload-file-query.dto';
 
 @ApiTags('files')
+@ApiBearerAuth('access-token')
 @UseGuards(AccessTokenGuard)
 @Controller('files')
 export class FilesController {
@@ -54,6 +58,19 @@ export class FilesController {
 
   @Post()
   @ApiOperation({ summary: 'Upload current organization file' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
   @ApiResponse({
     status: 201,
     description: 'File uploaded.',

@@ -17,6 +17,7 @@ import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { OffsetPaginationDto } from 'src/common/dto/offset-pagination.dto';
 import {
+  ApiBearerAuth,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -30,6 +31,7 @@ import {
 import { AccessTokenGuard } from 'src/auth/access-token.guard';
 
 @ApiTags('organizations')
+@ApiBearerAuth('access-token')
 @UseGuards(AccessTokenGuard)
 @Controller('organizations')
 export class OrganizationsController {

@@ -17,6 +17,7 @@ import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { ConversationsService } from './conversations.service';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import {
+  ApiBearerAuth,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -30,6 +31,7 @@ import {
 import { AccessTokenGuard } from 'src/auth/access-token.guard';
 
 @ApiTags('conversations')
+@ApiBearerAuth('access-token')
 @UseGuards(AccessTokenGuard)
 @Controller('conversations')
 export class ConversationsController {

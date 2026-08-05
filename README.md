@@ -134,6 +134,7 @@ conversations, and messages for performance testing.
 
 - Swagger/OpenAPI UI: `http://localhost:3000/api/docs`
 - Database design and relationships: `docs/database-design.md`
+- Asynchronous file processing flow: `docs/file-processing.md`
 - Query analysis, indexes, pagination, and transactions: `docs/query-analysis.md`
 - Error response format and examples: `docs/error-handling.md`
 - JSON payload performance notes: `docs/json-performance.md`

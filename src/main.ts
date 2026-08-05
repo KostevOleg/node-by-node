@@ -19,6 +19,15 @@ async function bootstrap() {
     .setTitle('Node by Node API')
     .setDescription('REST API documentation')
     .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'Paste the accessToken returned by /auth/sign-in',
+      },
+      'access-token',
+    )
     .build();
 
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
