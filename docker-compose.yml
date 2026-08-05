@@ -105,6 +105,8 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
       interval: 5s
@@ -134,3 +136,4 @@ services:
 volumes:
   postgres_data:
   minio_data:
+  rabbitmq_data:
