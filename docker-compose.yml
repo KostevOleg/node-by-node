@@ -44,7 +44,6 @@ services:
     build:
       context: .
       target: production
-    container_name: node_by_node_worker
     command: node dist/src/file-processing-worker/main.js
     restart: on-failure
     env_file:
