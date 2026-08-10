@@ -10,13 +10,17 @@ import { ConversationsService } from './conversations.service';
 import { conversationPublicSelect } from './conversation.select';
 import { messagePublicSelect } from 'src/messages/message.select';
 
+const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockTransactionFn = () =>
+  jest.fn<(callback: (tx: unknown) => unknown) => unknown>();
+
 const prismaService = {
-  $transaction: jest.fn(),
+  $transaction: mockTransactionFn(),
   conversation: {
-    create: jest.fn(),
-    findFirst: jest.fn(),
-    findMany: jest.fn(),
-    update: jest.fn(),
+    create: mockPrismaFn(),
+    findFirst: mockPrismaFn(),
+    findMany: mockPrismaFn(),
+    update: mockPrismaFn(),
   },
 };
 
@@ -92,10 +96,10 @@ describe('ConversationsService', () => {
   it('should create a conversation with its first message in a transaction', async () => {
     const tx = {
       conversation: {
-        create: jest.fn().mockResolvedValue(conversation),
+        create: mockPrismaFn().mockResolvedValue(conversation),
       },
       message: {
-        create: jest.fn().mockResolvedValue(message),
+        create: mockPrismaFn().mockResolvedValue(message),
       },
     };
 
@@ -142,10 +146,10 @@ describe('ConversationsService', () => {
     const error = new Error('Message create failed');
     const tx = {
       conversation: {
-        create: jest.fn().mockResolvedValue(conversation),
+        create: mockPrismaFn().mockResolvedValue(conversation),
       },
       message: {
-        create: jest.fn().mockRejectedValue(error),
+        create: mockPrismaFn().mockRejectedValue(error),
       },
     };
 
@@ -193,9 +197,7 @@ describe('ConversationsService', () => {
   it('should get all conversations', async () => {
     prismaService.conversation.findMany.mockResolvedValue([conversation]);
 
-    await expect(service.getAll()).resolves.toMatchObject([
-      publicConversation,
-    ]);
+    await expect(service.getAll()).resolves.toMatchObject([publicConversation]);
     expect(prismaService.conversation.findMany).toHaveBeenCalledWith({
       where: {
         deletedAt: null,
@@ -268,12 +270,12 @@ describe('ConversationsService', () => {
     prismaService.conversation.findFirst.mockResolvedValue(conversation);
     prismaService.conversation.update.mockResolvedValue(updatedConversation);
 
-    await expect(service.update('conversation-id', data)).resolves.toMatchObject(
-      {
-        ...publicConversation,
-        ...data,
-      },
-    );
+    await expect(
+      service.update('conversation-id', data),
+    ).resolves.toMatchObject({
+      ...publicConversation,
+      ...data,
+    });
     expect(prismaService.conversation.update).toHaveBeenCalledWith({
       where: { id: 'conversation-id' },
       data,
@@ -297,7 +299,7 @@ describe('ConversationsService', () => {
     expect(prismaService.conversation.update).toHaveBeenCalledWith({
       where: { id: 'conversation-id' },
       data: {
-        deletedAt: expect.any(Date) as Date,
+        deletedAt: expect.any(Date) as unknown as Date,
         status: ConversationStatus.ARCHIVED,
       },
     });

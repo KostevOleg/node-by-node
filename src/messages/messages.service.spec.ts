@@ -5,12 +5,14 @@ import { PrismaService } from 'src/prisma/prisma-service';
 import { MessagesService } from './messages.service';
 import { messagePublicSelect } from './message.select';
 
+const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
+
 const prismaService = {
   message: {
-    create: jest.fn(),
-    findFirst: jest.fn(),
-    findMany: jest.fn(),
-    update: jest.fn(),
+    create: mockPrismaFn(),
+    findFirst: mockPrismaFn(),
+    findMany: mockPrismaFn(),
+    update: mockPrismaFn(),
   },
 };
 
@@ -182,7 +184,7 @@ describe('MessagesService', () => {
     expect(prismaService.message.update).toHaveBeenCalledWith({
       where: { id: 'message-id' },
       data: {
-        deletedAt: expect.any(Date) as Date,
+        deletedAt: expect.any(Date) as unknown as Date,
       },
     });
   });

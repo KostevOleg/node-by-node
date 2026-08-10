@@ -22,6 +22,11 @@ import {
 } from './files.constants';
 import { fileTypeFromBuffer } from 'file-type';
 import { VirusScanService } from './virus-scan.service';
+import { FileProcessingProducer } from 'src/file-processing/file-processing.producer';
+
+type UploadFileOptions = {
+  processSales: boolean;
+};
 
 @Injectable()
 export class FilesService {
@@ -29,6 +34,7 @@ export class FilesService {
     private readonly prismaService: PrismaService,
     private readonly objectStorageService: ObjectStorageService,
     private readonly virusService: VirusScanService,
+    private readonly fileProcessingProducer: FileProcessingProducer,
   ) {}
   private buildStorageKey(
     organizationId: string,
@@ -163,8 +169,17 @@ export class FilesService {
     return file;
   }
 
-  async uploadFile(user: AuthenticatedUser, file: Express.Multer.File) {
+  async uploadFile(
+    user: AuthenticatedUser,
+    file: Express.Multer.File,
+    options: UploadFileOptions = { processSales: false },
+  ) {
     const extension = this.validateUploadFile(file);
+
+    if (options.processSales && extension !== '.xlsx') {
+      throw new BadRequestException('Sales processing requires an .xlsx file');
+    }
+
     const sha256 = this.getSha256(file.buffer);
     const fileId = randomUUID();
     const storageKey = this.buildStorageKey(
@@ -189,6 +204,7 @@ export class FilesService {
     if (duplicate) {
       throw new ConflictException('File already exists in this organization');
     }
+
     const detected = await fileTypeFromBuffer(file.buffer);
     const isTextFile =
       extension === '.txt' &&
@@ -208,21 +224,32 @@ export class FilesService {
     );
 
     try {
-      const createdFile = await prismaErrorHandler(() =>
-        this.prismaService.organizationFile.create({
-          data: {
-            id: fileId,
-            organizationId: user.organizationId,
-            uploadedById: user.id,
-            originalName: file.originalname,
-            storageKey,
-            mimeType: verifiedMimeType,
-            extension,
-            size: file.size,
-            sha256,
-          },
-        }),
-      );
+      const createdFile = await this.prismaService.$transaction(async (tx) => {
+        const createdFile = await prismaErrorHandler(() =>
+          tx.organizationFile.create({
+            data: {
+              id: fileId,
+              organizationId: user.organizationId,
+              uploadedById: user.id,
+              originalName: file.originalname,
+              storageKey,
+              mimeType: verifiedMimeType,
+              extension,
+              size: file.size,
+              sha256,
+            },
+          }),
+        );
+
+        if (options.processSales) {
+          await this.fileProcessingProducer.enqueueFileProcessingJob(
+            createdFile,
+            tx,
+          );
+        }
+
+        return createdFile;
+      });
 
       return serialize(FileResponseDto, createdFile);
     } catch (error) {

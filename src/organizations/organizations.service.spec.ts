@@ -5,13 +5,17 @@ import { PrismaService } from 'src/prisma/prisma-service';
 import { OrganizationsService } from './organizations.service';
 import { organizationPublicSelect } from './organization.select';
 
+const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockTransactionFn = () =>
+  jest.fn<(callback: (tx: unknown) => unknown) => unknown>();
+
 const prismaService = {
-  $transaction: jest.fn(),
+  $transaction: mockTransactionFn(),
   organization: {
-    create: jest.fn(),
-    findFirst: jest.fn(),
-    findMany: jest.fn(),
-    update: jest.fn(),
+    create: mockPrismaFn(),
+    findFirst: mockPrismaFn(),
+    findMany: mockPrismaFn(),
+    update: mockPrismaFn(),
   },
 };
 
@@ -176,13 +180,13 @@ describe('OrganizationsService', () => {
     };
     const tx = {
       session: {
-        updateMany: jest.fn().mockResolvedValue({ count: 3 }),
+        updateMany: mockPrismaFn().mockResolvedValue({ count: 3 }),
       },
       user: {
-        updateMany: jest.fn().mockResolvedValue({ count: 2 }),
+        updateMany: mockPrismaFn().mockResolvedValue({ count: 2 }),
       },
       organization: {
-        update: jest.fn().mockResolvedValue(deletedOrganization),
+        update: mockPrismaFn().mockResolvedValue(deletedOrganization),
       },
     };
 
@@ -238,13 +242,13 @@ describe('OrganizationsService', () => {
     const error = new Error('User update failed');
     const tx = {
       session: {
-        updateMany: jest.fn().mockResolvedValue({ count: 3 }),
+        updateMany: mockPrismaFn().mockResolvedValue({ count: 3 }),
       },
       user: {
-        updateMany: jest.fn().mockRejectedValue(error),
+        updateMany: mockPrismaFn().mockRejectedValue(error),
       },
       organization: {
-        update: jest.fn(),
+        update: mockPrismaFn(),
       },
     };
 

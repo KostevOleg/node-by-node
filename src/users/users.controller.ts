@@ -16,6 +16,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 import {
+  ApiBearerAuth,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -27,6 +28,7 @@ import { AccessTokenGuard } from 'src/auth/access-token.guard';
 import { OffsetPaginationDto } from 'src/common/dto/offset-pagination.dto';
 
 @ApiTags('users')
+@ApiBearerAuth('access-token')
 @UseGuards(AccessTokenGuard)
 @Controller('users')
 export class UsersController {

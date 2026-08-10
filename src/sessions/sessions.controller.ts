@@ -17,6 +17,7 @@ import { UpdateSessionDto } from './dto/update-session.dto';
 import { SessionsService } from './sessions.service';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import {
+  ApiBearerAuth,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -30,6 +31,7 @@ import {
 import { AccessTokenGuard } from 'src/auth/access-token.guard';
 
 @ApiTags('sessions')
+@ApiBearerAuth('access-token')
 @UseGuards(AccessTokenGuard)
 @Controller('sessions')
 export class SessionsController {

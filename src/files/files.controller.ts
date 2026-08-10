@@ -19,6 +19,9 @@ import {
 import {
   ApiOperation,
   ApiParam,
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiQuery,
   ApiResponse,
   ApiTags,
@@ -30,8 +33,10 @@ import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { FilePageResponseDto, FileResponseDto } from './dto/files-response.dto';
 import type { Response } from 'express';
 import { FileUploadInterceptor } from './interceptors/file-upload.interceptor';
+import { UploadFileQueryDto } from './dto/upload-file-query.dto';
 
 @ApiTags('files')
+@ApiBearerAuth('access-token')
 @UseGuards(AccessTokenGuard)
 @Controller('files')
 export class FilesController {
@@ -53,6 +58,19 @@ export class FilesController {
 
   @Post()
   @ApiOperation({ summary: 'Upload current organization file' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
   @ApiResponse({
     status: 201,
     description: 'File uploaded.',
@@ -66,9 +84,12 @@ export class FilesController {
   @UseInterceptors(FileUploadInterceptor())
   upload(
     @Req() req: AuthenticatedRequest,
+    @Query() query: UploadFileQueryDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    return this.filesService.uploadFile(req.user, file);
+    return this.filesService.uploadFile(req.user, file, {
+      processSales: query.processSales ?? false,
+    });
   }
 
   @Get(':id/download')

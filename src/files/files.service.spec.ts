@@ -12,28 +12,39 @@ import { PrismaService } from 'src/prisma/prisma-service';
 import { FilesService } from './files.service';
 import { ObjectStorageService } from './storage/object-storage.service';
 import { VirusScanService } from './virus-scan.service';
+import { FileProcessingProducer } from 'src/file-processing/file-processing.producer';
 
 jest.mock('file-type', () => ({
   fileTypeFromBuffer: jest.fn(),
 }));
 
+const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
+
 const prismaService = {
+  $transaction: jest.fn(
+    (callback: (tx: typeof prismaService) => Promise<unknown>) =>
+      callback(prismaService),
+  ),
   organizationFile: {
-    create: jest.fn(),
-    findFirst: jest.fn(),
-    findMany: jest.fn(),
-    update: jest.fn(),
+    create: mockPrismaFn(),
+    findFirst: mockPrismaFn(),
+    findMany: mockPrismaFn(),
+    update: mockPrismaFn(),
   },
 };
 
 const objectStorageService = {
-  putObject: jest.fn(),
-  getObject: jest.fn(),
-  deleteObject: jest.fn(),
+  putObject: mockPrismaFn(),
+  getObject: mockPrismaFn(),
+  deleteObject: mockPrismaFn(),
 };
 
 const virusScanService = {
-  assertClean: jest.fn(),
+  assertClean: mockPrismaFn(),
+};
+
+const fileProcessingProducer = {
+  enqueueFileProcessingJob: mockPrismaFn(),
 };
 
 describe('FilesService', () => {
@@ -78,6 +89,7 @@ describe('FilesService', () => {
       prismaService as unknown as PrismaService,
       objectStorageService as unknown as ObjectStorageService,
       virusScanService as unknown as VirusScanService,
+      fileProcessingProducer as unknown as FileProcessingProducer,
     );
     jest.mocked(fileTypeFromBuffer).mockResolvedValue({
       ext: 'pdf',
@@ -107,6 +119,49 @@ describe('FilesService', () => {
       upload.mimetype,
     );
     expect(prismaService.organizationFile.create).toHaveBeenCalled();
+  });
+
+  it('rolls back database work and cleans up storage when sales job publishing fails', async () => {
+    const upload = makeUpload({
+      originalname: 'sales.xlsx',
+      mimetype:
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buffer: Buffer.from('xlsx-bytes'),
+      size: 9,
+    });
+    const salesFileRecord = {
+      ...fileRecord,
+      originalName: 'sales.xlsx',
+      storageKey:
+        'organizations/b35d9d42-75b0-4d72-aea8-897293e7a15f/files/file.xlsx',
+      mimeType:
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      extension: '.xlsx',
+      size: 9,
+    };
+    const publishError = new Error('RabbitMQ channel is not ready');
+
+    jest.mocked(fileTypeFromBuffer).mockResolvedValue({
+      ext: 'xlsx',
+      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    prismaService.organizationFile.findFirst.mockResolvedValue(null);
+    prismaService.organizationFile.create.mockResolvedValue(salesFileRecord);
+    fileProcessingProducer.enqueueFileProcessingJob.mockRejectedValue(
+      publishError,
+    );
+
+    await expect(
+      service.uploadFile(user, upload, { processSales: true }),
+    ).rejects.toThrow(publishError);
+
+    expect(prismaService.$transaction).toHaveBeenCalled();
+    expect(
+      fileProcessingProducer.enqueueFileProcessingJob,
+    ).toHaveBeenCalledWith(salesFileRecord, prismaService);
+    expect(objectStorageService.deleteObject).toHaveBeenCalledWith(
+      expect.stringContaining(`organizations/${user.organizationId}/files/`),
+    );
   });
 
   it('does not save a file when virus scan fails', async () => {
@@ -310,7 +365,7 @@ describe('FilesService', () => {
     expect(prismaService.organizationFile.update).toHaveBeenCalledWith({
       where: { id: fileRecord.id },
       data: {
-        deletedAt: expect.any(Date) as Date,
+        deletedAt: expect.any(Date) as unknown as Date,
       },
     });
     expect(objectStorageService.deleteObject).toHaveBeenCalledWith(

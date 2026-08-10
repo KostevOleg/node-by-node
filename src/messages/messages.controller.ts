@@ -17,6 +17,7 @@ import { UpdateMessageDto } from './dto/update-message.dto';
 import { MessagesService } from './messages.service';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import {
+  ApiBearerAuth,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -30,6 +31,7 @@ import {
 import { AccessTokenGuard } from 'src/auth/access-token.guard';
 
 @ApiTags('messages')
+@ApiBearerAuth('access-token')
 @UseGuards(AccessTokenGuard)
 @Controller('messages')
 export class MessagesController {
