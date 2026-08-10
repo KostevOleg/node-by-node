@@ -57,6 +57,7 @@ model Organization {
   deletedAt   DateTime?
 
   users User[]
+  conversations Conversation[]
   files OrganizationFile[]
   fileProcessingJobs FileProcessingJob[]
 
@@ -77,6 +78,7 @@ model User {
   deletedAt      DateTime?
   sessions       Session[]
   conversations  Conversation[]
+  conversationParticipants ConversationParticipant[]
   roles          UserRole[]
   uploadedFiles  OrganizationFile[]
 
@@ -112,22 +114,39 @@ model Session {
 }
 
 model Conversation {
-  id        String             @id @default(uuid()) @db.Uuid
-  userId    String             @db.Uuid
-  title     String             @db.VarChar(255)
-  status    ConversationStatus @default(ACTIVE)
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
-  deletedAt DateTime?
-  messages  Message[]
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @db.Uuid
+  userId         String             @db.Uuid
+  title          String             @db.VarChar(255)
+  status         ConversationStatus @default(ACTIVE)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  deletedAt      DateTime?
+  messages       Message[]
+  participants   ConversationParticipant[]
 
-  user User @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
 
+  @@index([organizationId])
   @@index([userId])
   @@index([status])
   @@index([deletedAt])
   @@index([createdAt])
+  @@index([organizationId, deletedAt, createdAt])
   @@index([userId, deletedAt, createdAt])
+}
+
+model ConversationParticipant {
+  conversationId String   @db.Uuid
+  userId         String   @db.Uuid
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@id([conversationId, userId])
+  @@index([userId])
 }
 
 model Message {

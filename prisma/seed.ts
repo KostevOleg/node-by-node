@@ -185,6 +185,7 @@ async function main() {
   const users = await createUsers(organization);
   await createSessions(users);
   const conversations = await createConversations(users);
+  await createConversationParticipants(conversations, users);
   await createMessages(conversations);
 
   console.log(
@@ -194,6 +195,7 @@ async function main() {
 
 async function clearDatabase() {
   await prisma.message.deleteMany();
+  await prisma.conversationParticipant.deleteMany();
   await prisma.conversation.deleteMany();
   await prisma.session.deleteMany();
   await prisma.userRole.deleteMany();
@@ -254,6 +256,7 @@ async function createConversations(users: User[]) {
       const scenario = conversationScenarios[i % conversationScenarios.length];
 
       conversationMocks.push({
+        organizationId: user.organizationId,
         userId: user.id,
         title: `${scenario.title} #${i + 1} for ${user.email}`,
       });
@@ -270,6 +273,46 @@ async function createConversations(users: User[]) {
         in: users.map((user) => user.id),
       },
     },
+  });
+}
+
+async function createConversationParticipants(
+  conversations: Conversation[],
+  users: User[],
+) {
+  const usersByOrganization = users.reduce(
+    (groups, user) => {
+      groups[user.organizationId] ??= [];
+      groups[user.organizationId].push(user);
+      return groups;
+    },
+    {} as Record<string, User[]>,
+  );
+  const participantMocks: Prisma.ConversationParticipantCreateManyInput[] = [];
+
+  for (const conversation of conversations) {
+    const organizationUsers = usersByOrganization[conversation.organizationId];
+    const ownerIndex = organizationUsers.findIndex(
+      (user) => user.id === conversation.userId,
+    );
+    const peer =
+      organizationUsers[(ownerIndex + 1) % organizationUsers.length];
+
+    participantMocks.push(
+      {
+        conversationId: conversation.id,
+        userId: conversation.userId,
+      },
+      {
+        conversationId: conversation.id,
+        userId: peer.id,
+      },
+    );
+  }
+
+  await prisma.conversationParticipant.createMany({
+    data: participantMocks,
+    skipDuplicates: true,
   });
 }
 
