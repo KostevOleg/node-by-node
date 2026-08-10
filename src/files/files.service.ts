@@ -224,25 +224,32 @@ export class FilesService {
     );
 
     try {
-      const createdFile = await prismaErrorHandler(() =>
-        this.prismaService.organizationFile.create({
-          data: {
-            id: fileId,
-            organizationId: user.organizationId,
-            uploadedById: user.id,
-            originalName: file.originalname,
-            storageKey,
-            mimeType: verifiedMimeType,
-            extension,
-            size: file.size,
-            sha256,
-          },
-        }),
-      );
+      const createdFile = await this.prismaService.$transaction(async (tx) => {
+        const createdFile = await prismaErrorHandler(() =>
+          tx.organizationFile.create({
+            data: {
+              id: fileId,
+              organizationId: user.organizationId,
+              uploadedById: user.id,
+              originalName: file.originalname,
+              storageKey,
+              mimeType: verifiedMimeType,
+              extension,
+              size: file.size,
+              sha256,
+            },
+          }),
+        );
 
-      if (options.processSales) {
-        await this.fileProcessingProducer.enqueueFileProcessingJob(createdFile);
-      }
+        if (options.processSales) {
+          await this.fileProcessingProducer.enqueueFileProcessingJob(
+            createdFile,
+            tx,
+          );
+        }
+
+        return createdFile;
+      });
 
       return serialize(FileResponseDto, createdFile);
     } catch (error) {

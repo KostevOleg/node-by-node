@@ -8,6 +8,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { fileTypeFromBuffer } from 'file-type';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { Request } from 'express';
 import { AccessTokenGuard } from '../src/auth/access-token.guard';
 import { AppModule } from '../src/app.module';
 import { ObjectStorageService } from '../src/files/storage/object-storage.service';
@@ -17,6 +18,19 @@ import { VirusScanService } from '../src/files/virus-scan.service';
 
 const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
+type PrismaServiceMock = {
+  $transaction: (
+    callback: (tx: PrismaServiceMock) => Promise<unknown>,
+  ) => Promise<unknown>;
+  organizationFile: {
+    findFirst: ReturnType<typeof mockPrismaFn>;
+    create: ReturnType<typeof mockPrismaFn>;
+  };
+  fileProcessingJob: {
+    create: ReturnType<typeof mockPrismaFn>;
+  };
+};
+
 const user = {
   id: '9b82f5a4-78f3-4f23-b78f-10654cf9a2f1',
   organizationId: 'b35d9d42-75b0-4d72-aea8-897293e7a15f',
@@ -25,15 +39,18 @@ const user = {
 
 const authGuard: CanActivate = {
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest();
-    request.user = user;
+    const httpRequest = context
+      .switchToHttp()
+      .getRequest<Request & { user?: typeof user }>();
+    httpRequest.user = user;
     return true;
   },
 };
 
 describe('File processing upload (e2e)', () => {
   let app: INestApplication<App>;
-  const prismaService = {
+  const prismaService: PrismaServiceMock = {
+    $transaction: jest.fn((callback) => callback(prismaService)),
     organizationFile: {
       findFirst: mockPrismaFn(),
       create: mockPrismaFn(),
@@ -122,15 +139,11 @@ describe('File processing upload (e2e)', () => {
     await request(app.getHttpServer())
       .post('/files?processSales=true')
       .set('Authorization', 'Bearer test-token')
-      .attach(
-        'file',
-        Buffer.from('xlsx-bytes'),
-        {
-          filename: 'sales.xlsx',
-          contentType:
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        },
-      )
+      .attach('file', Buffer.from('xlsx-bytes'), {
+        filename: 'sales.xlsx',
+        contentType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
       .expect(201)
       .expect(({ body }) => {
         expect(body).toMatchObject({

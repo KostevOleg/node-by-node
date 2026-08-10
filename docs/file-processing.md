@@ -59,7 +59,7 @@ Use Swagger at `http://localhost:3000/api/docs`:
 Check the worker logs:
 
 ```bash
-docker logs node_by_node_worker --tail 100
+docker compose logs worker --tail 100
 ```
 
 Successful processing logs a message like:

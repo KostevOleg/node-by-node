@@ -70,7 +70,7 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
       if (job.status === FileProcessingStatus.COMPLETED) {
         this.channel.ack(message);
         this.logger.log(
-          `Skipping already completed file processing job ${jobMessage.jobId}`,
+          `Skipping already completed file processing job ${jobMessage.jobId} correlationId=${jobMessage.correlationId}`,
         );
         return;
       }
@@ -78,7 +78,7 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
       if (job.status === FileProcessingStatus.FAILED) {
         this.channel.ack(message);
         this.logger.log(
-          `Skipping already failed file processing job ${jobMessage.jobId}`,
+          `Skipping already failed file processing job ${jobMessage.jobId} correlationId=${jobMessage.correlationId}`,
         );
         return;
       }
@@ -105,7 +105,9 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
       });
 
       this.channel.ack(message);
-      this.logger.log(`Processed file processing job ${jobMessage.jobId}`);
+      this.logger.log(
+        `Processed file processing job ${jobMessage.jobId} correlationId=${jobMessage.correlationId}`,
+      );
     } catch (error) {
       await this.handleProcessingFailure(message, jobMessage, error);
     }
@@ -122,22 +124,28 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
     });
 
     if (!job) {
-      throw new Error(`File processing job ${message.jobId} was not found`);
+      throw new BadRequestException(
+        `File processing job ${message.jobId} was not found`,
+      );
     }
 
     if (
       job.fileId !== message.fileId ||
       job.organizationId !== message.organizationId
     ) {
-      throw new Error(`File processing job ${message.jobId} payload mismatch`);
+      throw new BadRequestException(
+        `File processing job ${message.jobId} payload mismatch`,
+      );
     }
 
     if (job.file.deletedAt) {
-      throw new Error(`File ${message.fileId} was deleted`);
+      throw new BadRequestException(`File ${message.fileId} was deleted`);
     }
 
     if (job.file.extension !== '.xlsx') {
-      throw new Error(`File ${message.fileId} is not an .xlsx file`);
+      throw new BadRequestException(
+        `File ${message.fileId} is not an .xlsx file`,
+      );
     }
 
     return job;
@@ -160,7 +168,9 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
       where: {
         id: message.jobId,
         fileId: message.fileId,
-        status: FileProcessingStatus.PENDING,
+        status: {
+          in: [FileProcessingStatus.PENDING, FileProcessingStatus.PROCESSING],
+        },
       },
       data: {
         status: FileProcessingStatus.PROCESSING,
@@ -195,7 +205,12 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
       });
     }
 
-    this.logger.error('File processing job failed', errorMessage);
+    this.logger.error(
+      message
+        ? `File processing job failed ${message.jobId} correlationId=${message.correlationId}`
+        : 'File processing job failed',
+      errorMessage,
+    );
   }
 
   private async handleProcessingFailure(

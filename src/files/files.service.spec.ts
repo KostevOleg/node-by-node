@@ -21,6 +21,10 @@ jest.mock('file-type', () => ({
 const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
 const prismaService = {
+  $transaction: jest.fn(
+    (callback: (tx: typeof prismaService) => Promise<unknown>) =>
+      callback(prismaService),
+  ),
   organizationFile: {
     create: mockPrismaFn(),
     findFirst: mockPrismaFn(),
@@ -115,6 +119,49 @@ describe('FilesService', () => {
       upload.mimetype,
     );
     expect(prismaService.organizationFile.create).toHaveBeenCalled();
+  });
+
+  it('rolls back database work and cleans up storage when sales job publishing fails', async () => {
+    const upload = makeUpload({
+      originalname: 'sales.xlsx',
+      mimetype:
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buffer: Buffer.from('xlsx-bytes'),
+      size: 9,
+    });
+    const salesFileRecord = {
+      ...fileRecord,
+      originalName: 'sales.xlsx',
+      storageKey:
+        'organizations/b35d9d42-75b0-4d72-aea8-897293e7a15f/files/file.xlsx',
+      mimeType:
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      extension: '.xlsx',
+      size: 9,
+    };
+    const publishError = new Error('RabbitMQ channel is not ready');
+
+    jest.mocked(fileTypeFromBuffer).mockResolvedValue({
+      ext: 'xlsx',
+      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    prismaService.organizationFile.findFirst.mockResolvedValue(null);
+    prismaService.organizationFile.create.mockResolvedValue(salesFileRecord);
+    fileProcessingProducer.enqueueFileProcessingJob.mockRejectedValue(
+      publishError,
+    );
+
+    await expect(
+      service.uploadFile(user, upload, { processSales: true }),
+    ).rejects.toThrow(publishError);
+
+    expect(prismaService.$transaction).toHaveBeenCalled();
+    expect(
+      fileProcessingProducer.enqueueFileProcessingJob,
+    ).toHaveBeenCalledWith(salesFileRecord, prismaService);
+    expect(objectStorageService.deleteObject).toHaveBeenCalledWith(
+      expect.stringContaining(`organizations/${user.organizationId}/files/`),
+    );
   });
 
   it('does not save a file when virus scan fails', async () => {

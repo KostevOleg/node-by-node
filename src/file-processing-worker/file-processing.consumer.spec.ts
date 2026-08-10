@@ -3,6 +3,7 @@ import { FileProcessingStatus } from '@prisma/client';
 import { ConsumeMessage } from 'amqplib';
 import { Readable } from 'node:stream';
 import { ObjectStorageService } from 'src/files/storage/object-storage.service';
+import { FileProcessingJobMessage } from 'src/file-processing/messages/file-processing-job.message';
 import { PrismaService } from 'src/prisma/prisma-service';
 import {
   RABBITMQ_DLQ_ROUTING_KEY,
@@ -12,28 +13,49 @@ import { FileProcessingConsumer } from './file-processing.consumer';
 import { SalesExcelParserService } from './sales-excel-parser.service';
 
 describe('FileProcessingConsumer', () => {
-  it('moves a repeatedly failing job to the DLQ and ACKs the original message', async () => {
-    const jobId = 'job-id';
-    const fileId = 'file-id';
-    const organizationId = 'organization-id';
-    const correlationId = 'correlation-id';
+  const jobMessage: FileProcessingJobMessage = {
+    jobId: 'job-id',
+    fileId: 'file-id',
+    organizationId: 'organization-id',
+    storageKey: 'organizations/organization-id/files/file.xlsx',
+    correlationId: 'correlation-id',
+  };
 
+  const createMessage = (): ConsumeMessage =>
+    ({
+      content: Buffer.from(JSON.stringify(jobMessage)),
+      properties: {
+        contentType: 'application/json',
+        correlationId: jobMessage.correlationId,
+      },
+    }) as ConsumeMessage;
+
+  const createConsumerContext = (
+    options: {
+      status?: FileProcessingStatus;
+      attemptsAfterFailure?: number;
+      fileId?: string;
+      parserError?: Error;
+    } = {},
+  ) => {
     const prismaService = {
       fileProcessingJob: {
         findUnique: jest.fn().mockResolvedValue({
-          id: jobId,
-          fileId,
-          organizationId,
-          status: FileProcessingStatus.PENDING,
+          id: jobMessage.jobId,
+          fileId: options.fileId ?? jobMessage.fileId,
+          organizationId: jobMessage.organizationId,
+          status: options.status ?? FileProcessingStatus.PENDING,
           file: {
-            id: fileId,
-            storageKey: 'organizations/organization-id/files/file.xlsx',
+            id: jobMessage.fileId,
+            storageKey: jobMessage.storageKey,
             extension: '.xlsx',
             deletedAt: null,
           },
         }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-        update: jest.fn().mockResolvedValue({ attempts: 3 }),
+        update: jest.fn().mockResolvedValue({
+          attempts: options.attemptsAfterFailure ?? 1,
+        }),
       },
     };
     const objectStorageService = {
@@ -42,27 +64,18 @@ describe('FileProcessingConsumer', () => {
       }),
     };
     const salesExcelParserService = {
-      parse: jest.fn().mockRejectedValue(new Error('temporary failure')),
+      parse: options.parserError
+        ? jest.fn().mockRejectedValue(options.parserError)
+        : jest.fn().mockResolvedValue({
+            totalQuantity: 10,
+            totalRevenue: 25,
+          }),
     };
     const channel = {
       ack: jest.fn(),
+      nack: jest.fn(),
       publish: jest.fn(),
     };
-    const message = {
-      content: Buffer.from(
-        JSON.stringify({
-          jobId,
-          fileId,
-          organizationId,
-          storageKey: 'organizations/organization-id/files/file.xlsx',
-          correlationId,
-        }),
-      ),
-      properties: {
-        contentType: 'application/json',
-        correlationId,
-      },
-    } as unknown as ConsumeMessage;
 
     const consumer = new FileProcessingConsumer(
       {} as ConfigService,
@@ -72,14 +85,37 @@ describe('FileProcessingConsumer', () => {
     );
     Object.defineProperty(consumer, 'channel', { value: channel });
 
+    return {
+      channel,
+      consumer,
+      objectStorageService,
+      prismaService,
+      salesExcelParserService,
+    };
+  };
+
+  const handleMessage = async (
+    consumer: FileProcessingConsumer,
+    message: ConsumeMessage,
+  ) => {
     await (
       consumer as unknown as {
         handleMessage(message: ConsumeMessage): Promise<void>;
       }
     ).handleMessage(message);
+  };
+
+  it('retries a temporary failure when attempts remain', async () => {
+    const message = createMessage();
+    const { channel, consumer, prismaService } = createConsumerContext({
+      attemptsAfterFailure: 1,
+      parserError: new Error('temporary failure'),
+    });
+
+    await handleMessage(consumer, message);
 
     expect(prismaService.fileProcessingJob.update).toHaveBeenCalledWith({
-      where: { id: jobId },
+      where: { id: jobMessage.jobId },
       data: {
         attempts: {
           increment: 1,
@@ -93,7 +129,131 @@ describe('FileProcessingConsumer', () => {
     expect(prismaService.fileProcessingJob.updateMany).toHaveBeenLastCalledWith(
       {
         where: {
-          id: jobId,
+          id: jobMessage.jobId,
+          status: FileProcessingStatus.PROCESSING,
+        },
+        data: {
+          status: FileProcessingStatus.PENDING,
+          errorMessage: 'temporary failure',
+        },
+      },
+    );
+    expect(channel.nack).toHaveBeenCalledWith(message, false, false);
+    expect(channel.ack).not.toHaveBeenCalled();
+    expect(channel.publish).not.toHaveBeenCalled();
+  });
+
+  it.each([FileProcessingStatus.COMPLETED, FileProcessingStatus.FAILED])(
+    'skips an already %s job and ACKs the message',
+    async (status) => {
+      const message = createMessage();
+      const { channel, consumer, objectStorageService, prismaService } =
+        createConsumerContext({ status });
+
+      await handleMessage(consumer, message);
+
+      expect(channel.ack).toHaveBeenCalledWith(message);
+      expect(channel.nack).not.toHaveBeenCalled();
+      expect(channel.publish).not.toHaveBeenCalled();
+      expect(objectStorageService.getObject).not.toHaveBeenCalled();
+      expect(prismaService.fileProcessingJob.update).not.toHaveBeenCalled();
+      expect(prismaService.fileProcessingJob.updateMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it('continues a redelivered processing job without incrementing attempts', async () => {
+    const message = createMessage();
+    const { channel, consumer, prismaService, salesExcelParserService } =
+      createConsumerContext({ status: FileProcessingStatus.PROCESSING });
+
+    await handleMessage(consumer, message);
+
+    expect(prismaService.fileProcessingJob.update).not.toHaveBeenCalled();
+    expect(salesExcelParserService.parse).toHaveBeenCalled();
+    expect(prismaService.fileProcessingJob.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: jobMessage.jobId,
+        fileId: jobMessage.fileId,
+        status: {
+          in: [FileProcessingStatus.PENDING, FileProcessingStatus.PROCESSING],
+        },
+      },
+      data: {
+        status: FileProcessingStatus.PROCESSING,
+        startedAt: expect.any(Date) as Date,
+      },
+    });
+    expect(prismaService.fileProcessingJob.updateMany).toHaveBeenLastCalledWith(
+      {
+        where: {
+          id: jobMessage.jobId,
+          status: FileProcessingStatus.PROCESSING,
+        },
+        data: {
+          status: FileProcessingStatus.COMPLETED,
+          totalQuantity: 10,
+          totalRevenue: 25,
+          completedAt: expect.any(Date) as Date,
+        },
+      },
+    );
+    expect(channel.ack).toHaveBeenCalledWith(message);
+    expect(channel.nack).not.toHaveBeenCalled();
+    expect(channel.publish).not.toHaveBeenCalled();
+  });
+
+  it('fails permanent payload errors without retrying', async () => {
+    const message = createMessage();
+    const { channel, consumer, objectStorageService, prismaService } =
+      createConsumerContext({ fileId: 'different-file-id' });
+
+    await handleMessage(consumer, message);
+
+    expect(prismaService.fileProcessingJob.update).not.toHaveBeenCalled();
+    expect(prismaService.fileProcessingJob.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: jobMessage.jobId,
+        status: {
+          not: FileProcessingStatus.COMPLETED,
+        },
+      },
+      data: {
+        status: FileProcessingStatus.FAILED,
+        failedAt: expect.any(Date) as Date,
+        errorMessage: `File processing job ${jobMessage.jobId} payload mismatch`,
+      },
+    });
+    expect(objectStorageService.getObject).not.toHaveBeenCalled();
+    expect(channel.ack).toHaveBeenCalledWith(message);
+    expect(channel.nack).not.toHaveBeenCalled();
+    expect(channel.publish).not.toHaveBeenCalled();
+  });
+
+  it('moves a repeatedly failing job to the DLQ and ACKs the original message', async () => {
+    const message = createMessage();
+    const { channel, consumer, prismaService } = createConsumerContext({
+      attemptsAfterFailure: 3,
+      parserError: new Error('temporary failure'),
+    });
+
+    await handleMessage(consumer, message);
+
+    expect(prismaService.fileProcessingJob.update).toHaveBeenCalledWith({
+      where: { id: jobMessage.jobId },
+      data: {
+        attempts: {
+          increment: 1,
+        },
+        errorMessage: 'temporary failure',
+      },
+      select: {
+        attempts: true,
+      },
+    });
+    expect(prismaService.fileProcessingJob.updateMany).toHaveBeenLastCalledWith(
+      {
+        where: {
+          id: jobMessage.jobId,
           status: {
             not: FileProcessingStatus.COMPLETED,
           },
@@ -112,9 +272,10 @@ describe('FileProcessingConsumer', () => {
       {
         persistent: true,
         contentType: 'application/json',
-        correlationId,
+        correlationId: jobMessage.correlationId,
       },
     );
     expect(channel.ack).toHaveBeenCalledWith(message);
+    expect(channel.nack).not.toHaveBeenCalled();
   });
 });
