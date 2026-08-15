@@ -21,9 +21,12 @@ export class AccessTokenGuard implements CanActivate {
     private readonly prismaService: PrismaService,
     private readonly jwtService: JwtService,
   ) {}
+  protected getRequest(context: ExecutionContext): AuthenticatedRequest {
+    return context.switchToHttp().getRequest<AuthenticatedRequest>();
+  }
   async canActivate(context: ExecutionContext): Promise<boolean> {
     let payload: AccessTokenPayload;
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const request = this.getRequest(context);
     if (!request) {
       throw new UnauthorizedException('Unauthorized');
     }

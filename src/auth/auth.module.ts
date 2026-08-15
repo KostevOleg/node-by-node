@@ -4,11 +4,12 @@ import { AuthService } from './auth.service';
 import { JwtModule } from '@nestjs/jwt';
 import { AccessTokenGuard } from './access-token.guard';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { GraphqlAccessTokenGuard } from './graphql-access-token.guard';
 
 @Module({
   controllers: [AuthController],
-  providers: [AuthService, AccessTokenGuard],
-  exports: [AccessTokenGuard, JwtModule],
+  providers: [AuthService, AccessTokenGuard, GraphqlAccessTokenGuard],
+  exports: [AccessTokenGuard, JwtModule, GraphqlAccessTokenGuard],
   imports: [
     ConfigModule,
     JwtModule.registerAsync({
