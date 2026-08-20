@@ -14,11 +14,13 @@ import { AuthenticatedUser } from 'src/auth/types/authenticated-request';
 import { ChatMapper } from './mappers/chat.mapper';
 import { ChatErrorCode } from './graphql/chat-error-code';
 import { ChatGraphqlException } from './graphql/chat.exception';
+import { ChatRealtimeService } from './websocket/chat-realtime.service';
 @Injectable()
 export class ConversationsService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly chatMapper: ChatMapper,
+    private readonly chatRealtimeService: ChatRealtimeService,
   ) {}
 
   async createChat(user: AuthenticatedUser, input: CreateChatInput) {
@@ -141,11 +143,18 @@ export class ConversationsService {
       }),
     );
 
-    return this.chatMapper.toChatObject(chat);
+    const chatObject = this.chatMapper.toChatObject(chat);
+
+    this.chatRealtimeService.broadcastChatCreated(chatObject);
+
+    return chatObject;
   }
 
   async sendMessage(user: AuthenticatedUser, input: SendMessageInput) {
-    await this.findAccessibleChatOrThrow(user, input.chatId);
+    const participantIds = await this.getAccessibleChatParticipantIds(
+      user,
+      input.chatId,
+    );
 
     const message = await prismaErrorHandler(() =>
       this.prismaService.message.create({
@@ -160,7 +169,14 @@ export class ConversationsService {
       }),
     );
 
-    return this.chatMapper.toChatMessageObject(message);
+    const chatMessage = this.chatMapper.toChatMessageObject(message);
+    this.chatRealtimeService.broadcastMessageCreated(chatMessage);
+    this.chatRealtimeService.broadcastChatMessageCreated(
+      chatMessage,
+      participantIds,
+    );
+
+    return chatMessage;
   }
 
   async deleteMessage(user: AuthenticatedUser, messageId: string) {
@@ -174,7 +190,10 @@ export class ConversationsService {
       }),
     );
 
-    return this.chatMapper.toChatMessageObject(deletedMessage);
+    const chatMessage = this.chatMapper.toChatMessageObject(deletedMessage);
+    this.chatRealtimeService.broadcastMessageDeleted(chatMessage);
+
+    return chatMessage;
   }
 
   async updateMessage(user: AuthenticatedUser, input: UpdateMessageInput) {
@@ -195,7 +214,10 @@ export class ConversationsService {
       }),
     );
 
-    return this.chatMapper.toChatMessageObject(updatedMessage);
+    const chatMessage = this.chatMapper.toChatMessageObject(updatedMessage);
+    this.chatRealtimeService.broadcastMessageUpdated(chatMessage);
+
+    return chatMessage;
   }
 
   async deleteChat(user: AuthenticatedUser, chatId: string) {
@@ -305,6 +327,25 @@ export class ConversationsService {
     };
   }
 
+  async assertCanAccessChat(user: AuthenticatedUser, chatId: string) {
+    await this.findAccessibleChatOrThrow(user, chatId);
+  }
+
+  async getAccessibleChatParticipantIds(
+    user: AuthenticatedUser,
+    chatId: string,
+  ) {
+    const chat = await this.findAccessibleChatOrThrow(user, chatId, {
+      participants: {
+        select: {
+          userId: true,
+        },
+      },
+    });
+
+    return chat.participants.map((participant) => participant.userId);
+  }
+
   private getAccessibleChatWhere(
     user: AuthenticatedUser,
     chatId?: string,
@@ -336,13 +377,14 @@ export class ConversationsService {
   private async findAccessibleChatOrThrow(
     user: AuthenticatedUser,
     chatId: string,
+    select: Prisma.ConversationSelect = {
+      id: true,
+    },
   ) {
     const chat = await prismaErrorHandler(() =>
       this.prismaService.conversation.findFirst({
         where: this.getAccessibleChatWhere(user, chatId),
-        select: {
-          id: true,
-        },
+        select,
       }),
     );
 

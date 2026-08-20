@@ -9,11 +9,19 @@ import { SignOutDto } from './dto/sign-out.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { prismaErrorHandler } from 'src/common/utils/prisma-error.handler';
 import * as bcrypt from 'bcrypt';
+import { AuthenticatedUser } from './types/authenticated-request';
 
 type RefreshTokenPayload = {
   sub: string;
   email: string;
   type: 'refresh';
+  sessionId: string;
+};
+
+type AccessTokenPayload = {
+  sub: string;
+  email: string;
+  type: 'access';
   sessionId: string;
 };
 
@@ -29,6 +37,56 @@ export class AuthService {
   refreshTokenExpiresIn: JwtSignOptions['expiresIn'] =
     (process.env.JWT_REFRESH_TOKEN_EXPIRES_IN as JwtSignOptions['expiresIn']) ??
     '30d';
+
+  async authenticateAccessToken(token: string): Promise<AuthenticatedUser> {
+    let payload: AccessTokenPayload;
+
+    try {
+      payload = await this.jwtService.verifyAsync<AccessTokenPayload>(token);
+    } catch {
+      throw new UnauthorizedException('Unauthorized');
+    }
+
+    if (payload.type !== 'access') {
+      throw new UnauthorizedException('Unauthorized');
+    }
+
+    const session = await prismaErrorHandler(() =>
+      this.prismaService.session.findUnique({
+        where: {
+          id: payload.sessionId,
+        },
+      }),
+    );
+
+    const isSessionActive = session?.status === 'ACTIVE' && !session.revokedAt;
+    const isSessionExpired = session ? session.expiresAt <= new Date() : true;
+    const isSessionOwner = session?.userId === payload.sub;
+
+    if (!session || !isSessionActive || isSessionExpired || !isSessionOwner) {
+      throw new UnauthorizedException('Unauthorized');
+    }
+
+    const user = await prismaErrorHandler(() =>
+      this.prismaService.user.findFirst({
+        where: {
+          id: payload.sub,
+          deletedAt: null,
+          status: 'ACTIVE',
+        },
+      }),
+    );
+
+    if (!user) {
+      throw new UnauthorizedException('Unauthorized');
+    }
+
+    return {
+      id: user.id,
+      organizationId: user.organizationId,
+      email: user.email,
+    };
+  }
 
   async signIn(_dto: SignInDto) {
     const user = await prismaErrorHandler(() =>

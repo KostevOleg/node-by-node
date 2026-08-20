@@ -10,6 +10,7 @@ import { ConversationsService } from './conversations.service';
 import { ChatMapper } from './mappers/chat.mapper';
 import { ChatErrorCode } from './graphql/chat-error-code';
 import { ChatGraphqlException } from './graphql/chat.exception';
+import { ChatRealtimeService } from './websocket/chat-realtime.service';
 
 const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockTransactionFn = () =>
@@ -38,6 +39,14 @@ const prismaService = {
     findMany: mockPrismaFn(),
     update: mockPrismaFn(),
   },
+};
+
+const chatRealtimeService = {
+  broadcastChatCreated: jest.fn(),
+  broadcastChatMessageCreated: jest.fn(),
+  broadcastMessageCreated: jest.fn(),
+  broadcastMessageDeleted: jest.fn(),
+  broadcastMessageUpdated: jest.fn(),
 };
 
 describe('ConversationsService', () => {
@@ -116,6 +125,7 @@ describe('ConversationsService', () => {
     service = new ConversationsService(
       prismaService as unknown as PrismaService,
       new ChatMapper(),
+      chatRealtimeService as unknown as ChatRealtimeService,
     );
   });
 
@@ -171,6 +181,14 @@ describe('ConversationsService', () => {
         status: MessageStatus.SENT,
       },
     });
+    expect(chatRealtimeService.broadcastChatCreated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: chat.id,
+        lastMessage: expect.objectContaining({
+          id: message.id,
+        }),
+      }),
+    );
   });
 
   it('returns an existing chat for the same user pair', async () => {
@@ -224,7 +242,9 @@ describe('ConversationsService', () => {
   });
 
   it('sends a message only to an accessible chat', async () => {
-    prismaService.conversation.findFirst.mockResolvedValue({ id: chat.id });
+    prismaService.conversation.findFirst.mockResolvedValue({
+      participants: [{ userId: user.id }, { userId: participant.id }],
+    });
     prismaService.message.create.mockResolvedValue(message);
 
     await expect(
@@ -251,9 +271,30 @@ describe('ConversationsService', () => {
         },
       },
       select: {
-        id: true,
+        participants: {
+          select: {
+            userId: true,
+          },
+        },
       },
     });
+    expect(chatRealtimeService.broadcastMessageCreated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: message.id,
+        chatId: chat.id,
+        senderId: user.id,
+      }),
+    );
+    expect(
+      chatRealtimeService.broadcastChatMessageCreated,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: message.id,
+        chatId: chat.id,
+        senderId: user.id,
+      }),
+      [user.id, participant.id],
+    );
   });
 
   it('updates and hard deletes only messages sent by the current user', async () => {
@@ -283,6 +324,13 @@ describe('ConversationsService', () => {
         tokenCount: 2,
       },
     });
+    expect(chatRealtimeService.broadcastMessageUpdated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: message.id,
+        chatId: chat.id,
+        content: 'Updated text',
+      }),
+    );
 
     await expect(
       service.deleteMessage(user, message.id),
@@ -294,6 +342,12 @@ describe('ConversationsService', () => {
         id: message.id,
       },
     });
+    expect(chatRealtimeService.broadcastMessageDeleted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: message.id,
+        chatId: chat.id,
+      }),
+    );
   });
 
   it('hard deletes a chat with its messages and participants', async () => {

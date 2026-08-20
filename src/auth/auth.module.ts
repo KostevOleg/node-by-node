@@ -9,7 +9,7 @@ import { GraphqlAccessTokenGuard } from './graphql-access-token.guard';
 @Module({
   controllers: [AuthController],
   providers: [AuthService, AccessTokenGuard, GraphqlAccessTokenGuard],
-  exports: [AccessTokenGuard, JwtModule, GraphqlAccessTokenGuard],
+  exports: [AuthService, AccessTokenGuard, JwtModule, GraphqlAccessTokenGuard],
   imports: [
     ConfigModule,
     JwtModule.registerAsync({
