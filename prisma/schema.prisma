@@ -130,7 +130,6 @@ model Conversation {
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User         @relation(fields: [userId], references: [id])
 
-  @@unique([organizationId, firstUserId, secondUserId])
   @@index([organizationId])
   @@index([userId])
   @@index([status])

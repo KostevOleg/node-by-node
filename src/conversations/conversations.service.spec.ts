@@ -3,6 +3,7 @@ import {
   ConversationStatus,
   MessageSender,
   MessageStatus,
+  Prisma,
 } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { AuthenticatedUser } from 'src/auth/types/authenticated-request';
@@ -43,6 +44,7 @@ const prismaService = {
 
 const chatRealtimeService = {
   broadcastChatCreated: jest.fn(),
+  broadcastChatDeleted: jest.fn(),
   broadcastChatMessageCreated: jest.fn(),
   broadcastMessageCreated: jest.fn(),
   broadcastMessageDeleted: jest.fn(),
@@ -205,6 +207,29 @@ describe('ConversationsService', () => {
     expect(prismaService.$transaction).not.toHaveBeenCalled();
   });
 
+  it('returns a concurrently created chat when direct chat creation hits a unique conflict', async () => {
+    prismaService.user.findFirst.mockResolvedValue(participant);
+    prismaService.conversation.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(chat);
+    prismaService.$transaction.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    );
+
+    await expect(
+      service.createChat(user, {
+        participantId: participant.id,
+        firstMessage: 'Created by a concurrent request',
+      }),
+    ).resolves.toMatchObject({ id: chat.id });
+
+    expect(prismaService.conversation.findFirst).toHaveBeenCalledTimes(2);
+    expect(chatRealtimeService.broadcastChatCreated).not.toHaveBeenCalled();
+  });
+
   it('rejects chats with yourself or users from another organization', async () => {
     prismaService.user.findFirst.mockResolvedValue({
       ...participant,
@@ -351,7 +376,11 @@ describe('ConversationsService', () => {
   });
 
   it('hard deletes a chat with its messages and participants', async () => {
-    prismaService.conversation.findFirst.mockResolvedValue({ id: chat.id });
+    prismaService.conversation.findFirst
+      .mockResolvedValueOnce({ id: chat.id })
+      .mockResolvedValueOnce({
+        participants: [{ userId: user.id }, { userId: participant.id }],
+      });
 
     await expect(service.deleteChat(user, chat.id)).resolves.toBe(true);
 
@@ -372,6 +401,10 @@ describe('ConversationsService', () => {
         id: chat.id,
       },
     });
+    expect(chatRealtimeService.broadcastChatDeleted).toHaveBeenCalledWith(
+      chat.id,
+      [user.id, participant.id],
+    );
   });
 
   it('paginates current user chats and messages', async () => {
@@ -393,6 +426,20 @@ describe('ConversationsService', () => {
     ).resolves.toEqual({
       data: [expect.objectContaining({ id: message.id })],
       nextCursor: message.id,
+    });
+  });
+
+  it('returns chat messages with a null senderId', async () => {
+    prismaService.conversation.findFirst.mockResolvedValue({ id: chat.id });
+    prismaService.message.findMany.mockResolvedValue([
+      { ...message, senderId: null },
+    ]);
+
+    await expect(
+      service.getChatMessages(user, { chatId: chat.id, take: 1 }),
+    ).resolves.toEqual({
+      data: [expect.objectContaining({ id: message.id, senderId: null })],
+      nextCursor: null,
     });
   });
 

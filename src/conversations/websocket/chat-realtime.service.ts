@@ -87,4 +87,9 @@ export class ChatRealtimeService {
       });
     }
   }
+  broadcastChatDeleted(chatId: string, participantIds: string[]) {
+    for (const userId of participantIds) {
+      this.server?.to(this.userRoom(userId)).emit('chatDeleted', { chatId });
+    }
+  }
 }

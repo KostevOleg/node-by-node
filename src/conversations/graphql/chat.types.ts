@@ -23,8 +23,8 @@ export class ChatMessageObject {
   @Field(() => ID)
   chatId: string;
 
-  @Field(() => ID)
-  senderId: string;
+  @Field(() => ID, { nullable: true })
+  senderId: string | null;
 
   @Field()
   content: string;

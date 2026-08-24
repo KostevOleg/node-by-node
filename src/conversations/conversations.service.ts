@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { MessageSender, MessageStatus, Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma-service';
 import { prismaErrorHandler } from 'src/common/utils/prisma-error.handler';
@@ -58,96 +58,92 @@ export class ConversationsService {
     }
     const [firstUserId, secondUserId] = [user.id, participant.id].sort();
 
-    const existingChat = await prismaErrorHandler(() =>
-      this.prismaService.conversation.findFirst({
-        where: {
-          organizationId: user.organizationId,
-          firstUserId,
-          secondUserId,
-          deletedAt: null,
-        },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        include: {
-          participants: {
-            include: {
-              user: true,
-            },
-          },
-          messages: {
-            where: {
-              deletedAt: null,
-            },
-            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-            take: 1,
-          },
-        },
-      }),
+    const existingChat = await this.findActiveDirectChat(
+      user.organizationId,
+      firstUserId,
+      secondUserId,
     );
 
     if (existingChat) {
       return this.chatMapper.toChatObject(existingChat);
     }
 
-    const chat = await prismaErrorHandler(() =>
-      this.prismaService.$transaction(async (tx) => {
-        const conversation = await tx.conversation.create({
-          data: {
-            organizationId: user.organizationId,
-            userId: user.id,
-            firstUserId,
-            secondUserId,
-          },
-        });
-        await tx.conversationParticipant.createMany({
-          data: [
-            {
-              conversationId: conversation.id,
+    try {
+      const chat = await prismaErrorHandler(() =>
+        this.prismaService.$transaction(async (tx) => {
+          const conversation = await tx.conversation.create({
+            data: {
+              organizationId: user.organizationId,
               userId: user.id,
+              firstUserId,
+              secondUserId,
             },
-            {
+          });
+          await tx.conversationParticipant.createMany({
+            data: [
+              {
+                conversationId: conversation.id,
+                userId: user.id,
+              },
+              {
+                conversationId: conversation.id,
+                userId: participant.id,
+              },
+            ],
+          });
+          await tx.message.create({
+            data: {
               conversationId: conversation.id,
-              userId: participant.id,
+              senderId: user.id,
+              content: input.firstMessage,
+              sender: MessageSender.USER,
+              tokenCount: input.firstMessage.trim().split(/\s+/).length,
+              status: MessageStatus.SENT,
             },
-          ],
-        });
-        await tx.message.create({
-          data: {
-            conversationId: conversation.id,
-            senderId: user.id,
-            content: input.firstMessage,
-            sender: MessageSender.USER,
-            tokenCount: input.firstMessage.trim().split(/\s+/).length,
-            status: MessageStatus.SENT,
-          },
-        });
+          });
 
-        return tx.conversation.findUniqueOrThrow({
-          where: {
-            id: conversation.id,
-          },
-          include: {
-            participants: {
-              include: {
-                user: true,
+          return tx.conversation.findUniqueOrThrow({
+            where: {
+              id: conversation.id,
+            },
+            include: {
+              participants: {
+                include: {
+                  user: true,
+                },
+              },
+              messages: {
+                where: {
+                  deletedAt: null,
+                },
+                orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+                take: 1,
               },
             },
-            messages: {
-              where: {
-                deletedAt: null,
-              },
-              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-              take: 1,
-            },
-          },
-        });
-      }),
-    );
+          });
+        }),
+      );
 
-    const chatObject = this.chatMapper.toChatObject(chat);
+      const chatObject = this.chatMapper.toChatObject(chat);
 
-    this.chatRealtimeService.broadcastChatCreated(chatObject);
+      this.chatRealtimeService.broadcastChatCreated(chatObject);
 
-    return chatObject;
+      return chatObject;
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        const concurrentlyCreatedChat = await this.findActiveDirectChat(
+          user.organizationId,
+          firstUserId,
+          secondUserId,
+        );
+
+        if (concurrentlyCreatedChat) {
+          return this.chatMapper.toChatObject(concurrentlyCreatedChat);
+        }
+      }
+
+      throw error;
+    }
   }
 
   async sendMessage(user: AuthenticatedUser, input: SendMessageInput) {
@@ -222,6 +218,10 @@ export class ConversationsService {
 
   async deleteChat(user: AuthenticatedUser, chatId: string) {
     const chat = await this.findAccessibleChatOrThrow(user, chatId);
+    const participantIds = await this.getAccessibleChatParticipantIds(
+      user,
+      chat.id,
+    );
 
     await prismaErrorHandler(() =>
       this.prismaService.$transaction(async (tx) => {
@@ -244,7 +244,7 @@ export class ConversationsService {
         });
       }),
     );
-
+    this.chatRealtimeService.broadcastChatDeleted(chat.id, participantIds);
     return true;
   }
 
@@ -372,6 +372,38 @@ export class ConversationsService {
       senderId: user.id,
       conversation: this.getAccessibleChatWhere(user),
     };
+  }
+
+  private findActiveDirectChat(
+    organizationId: string,
+    firstUserId: string,
+    secondUserId: string,
+  ) {
+    return prismaErrorHandler(() =>
+      this.prismaService.conversation.findFirst({
+        where: {
+          organizationId,
+          firstUserId,
+          secondUserId,
+          deletedAt: null,
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        include: {
+          participants: {
+            include: {
+              user: true,
+            },
+          },
+          messages: {
+            where: {
+              deletedAt: null,
+            },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            take: 1,
+          },
+        },
+      }),
+    );
   }
 
   private async findAccessibleChatOrThrow(

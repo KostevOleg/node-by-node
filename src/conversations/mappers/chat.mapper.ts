@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConversationStatus } from '@prisma/client';
 import {
   ChatMessageObject,
@@ -53,12 +53,6 @@ export class ChatMapper {
   }
 
   toChatMessageObject(message: ChatMessageSource): ChatMessageObject {
-    if (!message.senderId) {
-      throw new InternalServerErrorException(
-        'Chat message is missing senderId',
-      );
-    }
-
     return {
       id: message.id,
       chatId: message.conversationId,

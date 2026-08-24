@@ -1,11 +1,13 @@
-/*
-  Warnings:
-
-  - Added the required column `organizationId` to the `Conversation` table without a default value. This is not possible if the table is not empty.
-
-*/
 -- AlterTable
-ALTER TABLE "Conversation" ADD COLUMN     "organizationId" UUID NOT NULL;
+ALTER TABLE "Conversation" ADD COLUMN     "organizationId" UUID;
+
+-- Backfill existing conversations from their owning user before enforcing NOT NULL.
+UPDATE "Conversation" c
+SET "organizationId" = u."organizationId"
+FROM "User" u
+WHERE c."userId" = u."id";
+
+ALTER TABLE "Conversation" ALTER COLUMN "organizationId" SET NOT NULL;
 
 -- CreateTable
 CREATE TABLE "ConversationParticipant" (
