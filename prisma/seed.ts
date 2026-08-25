@@ -127,7 +127,6 @@ const lastNames = [
 
 const conversationScenarios = [
   {
-    title: 'Password reset',
     userProblems: [
       'I cannot reset my password.',
       'The reset link says it has expired.',
@@ -142,7 +141,6 @@ const conversationScenarios = [
     ],
   },
   {
-    title: 'API integration',
     userProblems: [
       'I am getting a 401 error from the API.',
       'The webhook payload does not match the documentation.',
@@ -157,7 +155,6 @@ const conversationScenarios = [
     ],
   },
   {
-    title: 'Billing question',
     userProblems: [
       'I was charged twice this month.',
       'I need a copy of my invoice.',
@@ -185,7 +182,8 @@ async function main() {
   const users = await createUsers(organization);
   await createSessions(users);
   const conversations = await createConversations(users);
-  await createMessages(conversations);
+  await createConversationParticipants(conversations);
+  await createMessages(conversations, users);
 
   console.log(
     `Seed script is ready with ${organizationMocks.length} organization mocks.`,
@@ -194,6 +192,7 @@ async function main() {
 
 async function clearDatabase() {
   await prisma.message.deleteMany();
+  await prisma.conversationParticipant.deleteMany();
   await prisma.conversation.deleteMany();
   await prisma.session.deleteMany();
   await prisma.userRole.deleteMany();
@@ -248,14 +247,39 @@ async function createUsers(organizations: Organization[]) {
 
 async function createConversations(users: User[]) {
   const conversationMocks: Prisma.ConversationCreateManyInput[] = [];
+  const seenPairs = new Set<string>();
+  const usersByOrganization = users.reduce(
+    (groups, user) => {
+      groups[user.organizationId] ??= [];
+      groups[user.organizationId].push(user);
+      return groups;
+    },
+    {} as Record<string, User[]>,
+  );
 
   for (const user of users) {
+    const organizationUsers = usersByOrganization[user.organizationId];
+    const ownerIndex = organizationUsers.findIndex(
+      (organizationUser) => organizationUser.id === user.id,
+    );
+
     for (let i = 0; i < 5; i++) {
-      const scenario = conversationScenarios[i % conversationScenarios.length];
+      const peer =
+        organizationUsers[(ownerIndex + i + 1) % organizationUsers.length];
+      const [firstUserId, secondUserId] = [user.id, peer.id].sort();
+      const pairKey = `${user.organizationId}:${firstUserId}:${secondUserId}`;
+
+      if (seenPairs.has(pairKey)) {
+        continue;
+      }
+
+      seenPairs.add(pairKey);
 
       conversationMocks.push({
+        organizationId: user.organizationId,
         userId: user.id,
-        title: `${scenario.title} #${i + 1} for ${user.email}`,
+        firstUserId,
+        secondUserId,
       });
     }
   }
@@ -273,9 +297,34 @@ async function createConversations(users: User[]) {
   });
 }
 
-async function createMessages(conversations: Conversation[]) {
+async function createConversationParticipants(
+  conversations: Conversation[],
+) {
+  const participantMocks: Prisma.ConversationParticipantCreateManyInput[] = [];
+
+  for (const conversation of conversations) {
+    participantMocks.push(
+      {
+        conversationId: conversation.id,
+        userId: conversation.firstUserId,
+      },
+      {
+        conversationId: conversation.id,
+        userId: conversation.secondUserId,
+      },
+    );
+  }
+
+  await prisma.conversationParticipant.createMany({
+    data: participantMocks,
+    skipDuplicates: true,
+  });
+}
+
+async function createMessages(conversations: Conversation[], users: User[]) {
   const batchSize = 1000;
   const messagesPerConversation = 10;
+  const userIds = new Set(users.map((user) => user.id));
   let messageMocks: Prisma.MessageCreateManyInput[] = [];
 
   for (
@@ -286,6 +335,13 @@ async function createMessages(conversations: Conversation[]) {
     const conversation = conversations[conversationIndex];
     const scenario =
       conversationScenarios[conversationIndex % conversationScenarios.length];
+
+    if (
+      !userIds.has(conversation.firstUserId) ||
+      !userIds.has(conversation.secondUserId)
+    ) {
+      continue;
+    }
 
     for (
       let messageIndex = 0;
@@ -301,6 +357,9 @@ async function createMessages(conversations: Conversation[]) {
 
       messageMocks.push({
         conversationId: conversation.id,
+        senderId: isUserMessage
+          ? conversation.firstUserId
+          : conversation.secondUserId,
         sender: isUserMessage ? MessageSender.USER : MessageSender.ASSISTANT,
         content,
         status: MessageStatus.SENT,

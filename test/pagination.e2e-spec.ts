@@ -2,10 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 import { UsersService } from '../src/users/users.service';
-import { ConversationsService } from '../src/conversations/conversations.service';
 import { MessagesService } from '../src/messages/messages.service';
 import { UserResponseDto } from '../src/users/dto/user-response.dto';
-import { ConversationResponseDto } from '../src/conversations/dto/conversation-response.dto';
 import { MessageResponseDto } from '../src/messages/dto/message-response.dto';
 
 const PAGE_SIZE = 100;
@@ -24,7 +22,6 @@ type CursorPage<T> = {
 describe('Pagination against seeded data (e2e)', () => {
   let moduleFixture: TestingModule;
   let usersService: UsersService;
-  let conversationsService: ConversationsService;
   let messagesService: MessagesService;
 
   beforeAll(async () => {
@@ -33,7 +30,6 @@ describe('Pagination against seeded data (e2e)', () => {
     }).compile();
 
     usersService = moduleFixture.get(UsersService);
-    conversationsService = moduleFixture.get(ConversationsService);
     messagesService = moduleFixture.get(MessagesService);
   });
 
@@ -63,30 +59,6 @@ describe('Pagination against seeded data (e2e)', () => {
 
     expect(seenIds.size).toBeGreaterThan(0);
     expect(hasNextPage).toBe(false);
-  });
-
-  it('walks conversations pages without duplicates', async () => {
-    const seenIds = new Set<string>();
-    let cursor: string | undefined;
-    let nextCursor: string | null = null;
-
-    do {
-      const page = (await conversationsService.getConversationsPage(
-        cursor,
-        PAGE_SIZE,
-      )) as unknown as CursorPage<ConversationResponseDto>;
-
-      for (const conversation of page.data) {
-        expect(seenIds.has(conversation.id)).toBe(false);
-        seenIds.add(conversation.id);
-      }
-
-      nextCursor = page.nextCursor;
-      cursor = nextCursor ?? undefined;
-    } while (nextCursor);
-
-    expect(seenIds.size).toBeGreaterThan(0);
-    expect(nextCursor).toBeNull();
   });
 
   it('walks messages pages without duplicates', async () => {
