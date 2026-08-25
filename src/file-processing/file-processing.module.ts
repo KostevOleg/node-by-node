@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { RabbitMqModule } from 'src/queue/rabbitmq.module';
+import { RabbitMqModule } from 'src/queue/sales/rabbitmq.module';
 import { FileProcessingProducer } from './file-processing.producer';
 
 @Module({

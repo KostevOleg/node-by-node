@@ -13,7 +13,7 @@ import { AccessTokenGuard } from '../src/auth/access-token.guard';
 import { AppModule } from '../src/app.module';
 import { ObjectStorageService } from '../src/files/storage/object-storage.service';
 import { PrismaService } from '../src/prisma/prisma-service';
-import { RabbitMqPublisher } from '../src/queue/rabbitmq.publisher';
+import { RabbitMqPublisher } from '../src/queue/sales/rabbitmq.publisher';
 import { VirusScanService } from '../src/files/virus-scan.service';
 
 const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();

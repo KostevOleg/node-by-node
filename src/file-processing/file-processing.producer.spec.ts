@@ -1,5 +1,5 @@
 import { PrismaService } from 'src/prisma/prisma-service';
-import { RabbitMqPublisher } from 'src/queue/rabbitmq.publisher';
+import { RabbitMqPublisher } from 'src/queue/sales/rabbitmq.publisher';
 import { FileProcessingProducer } from './file-processing.producer';
 
 const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();

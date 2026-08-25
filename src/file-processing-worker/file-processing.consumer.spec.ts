@@ -8,7 +8,7 @@ import { PrismaService } from 'src/prisma/prisma-service';
 import {
   RABBITMQ_DLQ_ROUTING_KEY,
   RABBITMQ_EXCHANGE,
-} from 'src/queue/rabbitmq.constants';
+} from 'src/queue/sales/rabbitmq.constants';
 import { FileProcessingConsumer } from './file-processing.consumer';
 import { SalesExcelParserService } from './sales-excel-parser.service';
 

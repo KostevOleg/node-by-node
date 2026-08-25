@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { RabbitMqPublisher } from './rabbitmq.publisher';
+import { RabbitMqPublisher } from 'src/queue/sales/rabbitmq.publisher';
 
 @Module({
   providers: [RabbitMqPublisher],

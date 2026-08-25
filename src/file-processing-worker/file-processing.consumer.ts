@@ -15,8 +15,8 @@ import {
   RABBITMQ_EXCHANGE,
   RABBITMQ_MAX_PROCESSING_ATTEMPTS,
   RABBITMQ_QUEUE,
-} from 'src/queue/rabbitmq.constants';
-import { assertFileProcessingTopology } from 'src/queue/rabbitmq.topology';
+} from 'src/queue/sales/rabbitmq.constants';
+import { assertFileProcessingTopology } from 'src/queue/sales/rabbitmq.topology';
 import { ObjectStorageService } from 'src/files/storage/object-storage.service';
 import { SalesExcelParserService } from './sales-excel-parser.service';
 import { Readable } from 'node:stream';

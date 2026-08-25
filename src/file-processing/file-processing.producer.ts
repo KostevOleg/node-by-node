@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { RabbitMqPublisher } from 'src/queue/rabbitmq.publisher';
+import { RabbitMqPublisher } from 'src/queue/sales/rabbitmq.publisher';
 import { PrismaService } from 'src/prisma/prisma-service';
 
 type FileProcessingSourceFile = {

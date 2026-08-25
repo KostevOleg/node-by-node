@@ -8,7 +8,7 @@ import { AppModule } from '../src/app.module';
 import { ObjectStorageService } from '../src/files/storage/object-storage.service';
 import { VirusScanService } from '../src/files/virus-scan.service';
 import { PrismaService } from '../src/prisma/prisma-service';
-import { RabbitMqPublisher } from '../src/queue/rabbitmq.publisher';
+import { RabbitMqPublisher } from '../src/queue/sales/rabbitmq.publisher';
 
 jest.setTimeout(30000);
 
