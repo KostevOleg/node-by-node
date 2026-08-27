@@ -23,4 +23,13 @@ export class UploadFileQueryDto {
   @Transform(({ value }) => transformBooleanQuery(value))
   @IsBoolean()
   processSales?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Queue the uploaded document for RAG ingestion.',
+    example: true,
+  })
+  @IsOptional()
+  @Transform(({ value }) => transformBooleanQuery(value))
+  @IsBoolean()
+  processRag?: boolean;
 }

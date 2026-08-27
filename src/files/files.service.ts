@@ -23,9 +23,11 @@ import {
 import { fileTypeFromBuffer } from 'file-type';
 import { VirusScanService } from './virus-scan.service';
 import { FileProcessingProducer } from 'src/file-processing/file-processing.producer';
+import { RagIngestionProducer } from 'src/rag/rag-ingestion.producer';
 
 type UploadFileOptions = {
   processSales: boolean;
+  processRag: boolean;
 };
 
 @Injectable()
@@ -35,6 +37,7 @@ export class FilesService {
     private readonly objectStorageService: ObjectStorageService,
     private readonly virusService: VirusScanService,
     private readonly fileProcessingProducer: FileProcessingProducer,
+    private readonly ragProducer: RagIngestionProducer,
   ) {}
   private buildStorageKey(
     organizationId: string,
@@ -172,12 +175,24 @@ export class FilesService {
   async uploadFile(
     user: AuthenticatedUser,
     file: Express.Multer.File,
-    options: UploadFileOptions = { processSales: false },
+    options: UploadFileOptions = { processSales: false, processRag: false },
   ) {
     const extension = this.validateUploadFile(file);
 
+    if (options.processSales && options.processRag) {
+      throw new BadRequestException(
+        'Choose either sales processing or RAG processing',
+      );
+    }
+
     if (options.processSales && extension !== '.xlsx') {
       throw new BadRequestException('Sales processing requires an .xlsx file');
+    }
+
+    if (options.processRag && !['.txt', '.pdf', '.md'].includes(extension)) {
+      throw new BadRequestException(
+        'RAG processing requires a .txt, .md, or .pdf file',
+      );
     }
 
     const sha256 = this.getSha256(file.buffer);
@@ -246,6 +261,10 @@ export class FilesService {
             createdFile,
             tx,
           );
+        }
+
+        if (options.processRag) {
+          await this.ragProducer.enqueueRagIngestionJob(createdFile, tx);
         }
 
         return createdFile;
