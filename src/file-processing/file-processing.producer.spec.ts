@@ -1,5 +1,5 @@
 import { PrismaService } from 'src/prisma/prisma-service';
-import { RabbitMqPublisher } from 'src/queue/sales/rabbitmq.publisher';
+import { DocumentProcessingPublisher } from 'src/queue/document-processing/publisher';
 import { FileProcessingProducer } from './file-processing.producer';
 
 const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
@@ -18,7 +18,7 @@ describe('FileProcessingProducer', () => {
   it('creates a processing job and publishes it to RabbitMQ', async () => {
     const service = new FileProcessingProducer(
       prismaService as unknown as PrismaService,
-      rabbitMqPublisher as unknown as RabbitMqPublisher,
+      rabbitMqPublisher as unknown as DocumentProcessingPublisher,
     );
 
     const file = {

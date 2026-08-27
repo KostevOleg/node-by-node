@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { RabbitMqPublisher } from 'src/queue/sales/rabbitmq.publisher';
+import { DocumentProcessingPublisher } from 'src/queue/document-processing/publisher';
 import { PrismaService } from 'src/prisma/prisma-service';
 
 type FileProcessingSourceFile = {
@@ -16,7 +16,7 @@ type FileProcessingPrismaClient = PrismaService | Prisma.TransactionClient;
 export class FileProcessingProducer {
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly rabbitMqPublisher: RabbitMqPublisher,
+    private readonly documentProcessingPublisher: DocumentProcessingPublisher,
   ) {}
 
   async enqueueFileProcessingJob(
@@ -33,7 +33,7 @@ export class FileProcessingProducer {
       },
     });
 
-    this.rabbitMqPublisher.publishFileProcessingJob({
+    this.documentProcessingPublisher.publishFileProcessingJob({
       jobId: job.id,
       fileId: file.id,
       organizationId: file.organizationId,
