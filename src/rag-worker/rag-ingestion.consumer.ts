@@ -16,9 +16,16 @@ import {
   RAG_INGESTION_DLQ_ROUTING_KEY,
   RAG_INGESTION_QUEUE,
   RAG_MAX_INGESTION_ATTEMPTS,
+  RAG_INGESTION_RETRY_3M_ROUTING_KEY,
+  RAG_INGESTION_RETRY_15M_ROUTING_KEY,
+  RAG_INGESTION_RETRY_2H_ROUTING_KEY,
 } from 'src/queue/document-processing/constants';
 import { assertDocumentProcessingTopology } from 'src/queue/document-processing/topology';
+import { DocumentParserService } from 'src/rag/document-parser.service';
 import { RagIngestionJobMessage } from 'src/rag/messages/rag-ingestion-job.message';
+import { TextChunkerService } from 'src/rag/text-chunker.service';
+import { EmbeddingService } from 'src/rag/embedding.service';
+import { QdrantVectorStoreService } from 'src/rag/qdrant-vector-store.service';
 
 @Injectable()
 export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
@@ -30,6 +37,10 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
     private readonly configService: ConfigService,
     private readonly prismaService: PrismaService,
     private readonly objectStorageService: ObjectStorageService,
+    private readonly documentParserService: DocumentParserService,
+    private readonly textChunkerService: TextChunkerService,
+    private readonly embeddingService: EmbeddingService,
+    private readonly qdrantStoreService: QdrantVectorStoreService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -87,8 +98,21 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
         job.file.storageKey,
       );
       const buffer = await this.streamToBuffer(object.body);
-      const text = this.parseDocument(buffer, job.file.extension);
-      const chunks = this.splitIntoChunks(text);
+      const text = await this.documentParserService.parse(
+        buffer,
+        job.file.extension,
+      );
+      const chunks = this.textChunkerService.split(text);
+      const vectors = await this.embeddingService.embedTexts(chunks);
+      await this.qdrantStoreService.upsertChunks({
+        chunks,
+        vectors,
+        organizationId: job.organizationId,
+        fileId: job.fileId,
+        jobId: job.id,
+        sourceName: job.file.originalName,
+        extension: job.file.extension,
+      });
 
       const result = await this.prismaService.ragIngestionJob.updateMany({
         where: {
@@ -98,6 +122,8 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
         data: {
           status: FileProcessingStatus.COMPLETED,
           chunksCount: chunks.length,
+          embeddingModel: this.embeddingService.model,
+          qdrantCollection: this.qdrantStoreService.collection,
           completedAt: new Date(),
         },
       });
@@ -163,44 +189,6 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     return Buffer.concat(chunks);
-  }
-
-  private parseDocument(buffer: Buffer, extension: string): string {
-    if (extension === '.txt' || extension === '.md') {
-      const text = buffer.toString('utf-8').trim();
-
-      if (!text) {
-        throw new BadRequestException('Document text is empty');
-      }
-
-      return text;
-    }
-
-    throw new BadRequestException('PDF parsing is not implemented yet');
-  }
-
-  private splitIntoChunks(text: string): string[] {
-    const chunkSize = 1000;
-    const overlap = 200;
-    const chunks: string[] = [];
-    let start = 0;
-
-    while (start < text.length) {
-      const end = Math.min(start + chunkSize, text.length);
-      const chunk = text.slice(start, end).trim();
-
-      if (chunk) {
-        chunks.push(chunk);
-      }
-
-      if (end === text.length) {
-        break;
-      }
-
-      start = end - overlap;
-    }
-
-    return chunks;
   }
 
   private async markJobAsProcessing(
@@ -275,7 +263,10 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
     const attempts = await this.incrementJobAttempts(jobMessage, error);
     if (attempts < RAG_MAX_INGESTION_ATTEMPTS) {
       await this.markJobAsPending(jobMessage, error);
-      this.channel?.nack(message, false, false);
+      const retryRoutingKey = this.getRetryRoutingKey(attempts);
+      this.publishMessage(message, retryRoutingKey);
+      this.channel?.ack(message);
+
       return;
     }
 
@@ -356,5 +347,17 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
         errorMessage,
       },
     });
+  }
+
+  private getRetryRoutingKey(attempts: number): string {
+    if (attempts === 1) {
+      return RAG_INGESTION_RETRY_3M_ROUTING_KEY;
+    }
+
+    if (attempts === 2) {
+      return RAG_INGESTION_RETRY_15M_ROUTING_KEY;
+    }
+
+    return RAG_INGESTION_RETRY_2H_ROUTING_KEY;
   }
 }

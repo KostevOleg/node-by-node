@@ -26,8 +26,8 @@ import { FileProcessingProducer } from 'src/file-processing/file-processing.prod
 import { RagIngestionProducer } from 'src/rag/rag-ingestion.producer';
 
 type UploadFileOptions = {
-  processSales: boolean;
-  processRag: boolean;
+  processSales?: boolean;
+  processRag?: boolean;
 };
 
 @Injectable()
@@ -178,18 +178,20 @@ export class FilesService {
     options: UploadFileOptions = { processSales: false, processRag: false },
   ) {
     const extension = this.validateUploadFile(file);
+    const processSales = options.processSales ?? false;
+    const processRag = options.processRag ?? false;
 
-    if (options.processSales && options.processRag) {
+    if (processSales && processRag) {
       throw new BadRequestException(
         'Choose either sales processing or RAG processing',
       );
     }
 
-    if (options.processSales && extension !== '.xlsx') {
+    if (processSales && extension !== '.xlsx') {
       throw new BadRequestException('Sales processing requires an .xlsx file');
     }
 
-    if (options.processRag && !['.txt', '.pdf', '.md'].includes(extension)) {
+    if (processRag && !['.txt', '.pdf', '.md'].includes(extension)) {
       throw new BadRequestException(
         'RAG processing requires a .txt, .md, or .pdf file',
       );
@@ -222,12 +224,12 @@ export class FilesService {
 
     const detected = await fileTypeFromBuffer(file.buffer);
     const isTextFile =
-      extension === '.txt' &&
-      file.mimetype === 'text/plain' &&
+      (extension === '.txt' || extension === '.md') &&
+      ['text/plain', 'text/markdown'].includes(file.mimetype) &&
       this.isPlainText(file.buffer);
 
     const verifiedMimeType = isTextFile
-      ? 'text/plain'
+      ? file.mimetype
       : this.getVerifiedMimeType(extension, file.mimetype, detected?.mime);
 
     await this.virusService.assertClean(file.buffer);
@@ -256,14 +258,14 @@ export class FilesService {
           }),
         );
 
-        if (options.processSales) {
+        if (processSales) {
           await this.fileProcessingProducer.enqueueFileProcessingJob(
             createdFile,
             tx,
           );
         }
 
-        if (options.processRag) {
+        if (processRag) {
           await this.ragProducer.enqueueRagIngestionJob(createdFile, tx);
         }
 
