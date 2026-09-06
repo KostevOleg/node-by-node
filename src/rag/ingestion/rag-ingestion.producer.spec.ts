@@ -1,8 +1,12 @@
 import { PrismaService } from 'src/prisma/prisma-service';
-import { DocumentProcessingPublisher } from 'src/queue/document-processing/publisher';
+import { OutboxService } from 'src/outbox/outbox.service';
+import {
+  DOCUMENT_PROCESSING_EXCHANGE,
+  RAG_INGESTION_ROUTING_KEY,
+} from 'src/queue/document-processing/constants';
 import { RagIngestionProducer } from './rag-ingestion.producer';
 
-const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockPrismaFn = () => jest.fn<Promise<unknown>, unknown[]>();
 
 const prismaService = {
   ragIngestionJob: {
@@ -10,15 +14,19 @@ const prismaService = {
   },
 };
 
-const documentProcessingPublisher = {
-  publishRagIngestionJob: jest.fn(),
+const outboxService = {
+  enqueue: jest.fn<Promise<void>, unknown[]>(),
 };
 
 describe('RagIngestionProducer', () => {
-  it('creates a RAG ingestion job and publishes it to RabbitMQ', async () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('creates a RAG ingestion job and enqueues an outbox message', async () => {
     const service = new RagIngestionProducer(
       prismaService as unknown as PrismaService,
-      documentProcessingPublisher as unknown as DocumentProcessingPublisher,
+      outboxService as unknown as OutboxService,
     );
 
     const file = {
@@ -42,14 +50,19 @@ describe('RagIngestionProducer', () => {
         correlationId: expect.any(String) as string,
       },
     });
-    expect(
-      documentProcessingPublisher.publishRagIngestionJob,
-    ).toHaveBeenCalledWith({
-      jobId: job.id,
-      fileId: file.id,
-      organizationId: file.organizationId,
-      storageKey: file.storageKey,
-      correlationId: job.correlationId,
-    });
+    expect(outboxService.enqueue).toHaveBeenCalledWith(
+      {
+        exchange: DOCUMENT_PROCESSING_EXCHANGE,
+        routingKey: RAG_INGESTION_ROUTING_KEY,
+        payload: {
+          jobId: job.id,
+          fileId: file.id,
+          organizationId: file.organizationId,
+          storageKey: file.storageKey,
+          correlationId: job.correlationId,
+        },
+      },
+      prismaService,
+    );
   });
 });

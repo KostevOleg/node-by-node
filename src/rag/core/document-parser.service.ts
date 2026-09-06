@@ -5,10 +5,15 @@ type PdfParseResult = {
   text: string;
 };
 
-type PdfParse = (buffer: Buffer) => Promise<PdfParseResult>;
+type PdfParseConstructor = new (params: { data: Buffer }) => {
+  getText: () => Promise<PdfParseResult>;
+  destroy: () => Promise<void>;
+};
 
 const nodeRequire = createRequire(__filename);
-const pdfParse = nodeRequire('pdf-parse') as PdfParse;
+const { PDFParse } = nodeRequire('pdf-parse') as {
+  PDFParse: PdfParseConstructor;
+};
 
 @Injectable()
 export class DocumentParserService {
@@ -29,9 +34,15 @@ export class DocumentParserService {
     throw new BadRequestException('Unsupported document type');
   }
   private async parsePdf(buffer: Buffer): Promise<string> {
-    const result = await pdfParse(buffer);
+    const parser = new PDFParse({ data: buffer });
 
-    return this.normalizeText(result.text);
+    try {
+      const result = await parser.getText();
+
+      return this.normalizeText(result.text);
+    } finally {
+      await parser.destroy();
+    }
   }
 
   private normalizeText(text: string): string {

@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from 'src/prisma/prisma-service';
-import { DocumentProcessingPublisher } from 'src/queue/document-processing/publisher';
+import { OutboxService } from 'src/outbox/outbox.service';
+import {
+  DOCUMENT_PROCESSING_EXCHANGE,
+  RAG_INGESTION_ROUTING_KEY,
+} from 'src/queue/document-processing/constants';
 
 type RagIngestionSourceFile = {
   id: string;
@@ -16,7 +20,7 @@ type RagIngestionPrismaClient = PrismaService | Prisma.TransactionClient;
 export class RagIngestionProducer {
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly documentProcessingPublisher: DocumentProcessingPublisher,
+    private readonly outboxService: OutboxService,
   ) {}
 
   async enqueueRagIngestionJob(
@@ -33,12 +37,19 @@ export class RagIngestionProducer {
       },
     });
 
-    this.documentProcessingPublisher.publishRagIngestionJob({
-      jobId: job.id,
-      fileId: file.id,
-      organizationId: file.organizationId,
-      storageKey: file.storageKey,
-      correlationId: job.correlationId,
-    });
+    await this.outboxService.enqueue(
+      {
+        exchange: DOCUMENT_PROCESSING_EXCHANGE,
+        routingKey: RAG_INGESTION_ROUTING_KEY,
+        payload: {
+          jobId: job.id,
+          fileId: file.id,
+          organizationId: file.organizationId,
+          storageKey: file.storageKey,
+          correlationId: job.correlationId,
+        },
+      },
+      prisma,
+    );
   }
 }

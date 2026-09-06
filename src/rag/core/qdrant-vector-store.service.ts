@@ -13,6 +13,20 @@ type UpsertChunksInput = {
   extension: string;
 };
 
+type SearchSimilarChunksInput = {
+  vector: number[];
+  organizationId: string;
+  fileId: string;
+  limit?: number;
+};
+
+export type RagSearchResult = {
+  chunkIndex: number;
+  sourceName: string;
+  score: number;
+  text: string;
+};
+
 @Injectable()
 export class QdrantVectorStoreService {
   private readonly client: QdrantClient;
@@ -67,6 +81,52 @@ export class QdrantVectorStoreService {
 
     await this.client.upsert(this.collection, {
       points,
+    });
+  }
+
+  async searchSimilarChunks(
+    input: SearchSimilarChunksInput,
+  ): Promise<RagSearchResult[]> {
+    const result = await this.client.query(this.collection, {
+      query: input.vector,
+      limit: input.limit ?? 5,
+      with_payload: true,
+      filter: {
+        must: [
+          {
+            key: 'organizationId',
+            match: {
+              value: input.organizationId,
+            },
+          },
+          {
+            key: 'fileId',
+            match: {
+              value: input.fileId,
+            },
+          },
+        ],
+      },
+    });
+
+    return result.points.flatMap((point) => {
+      const payload = point.payload;
+
+      if (
+        !payload ||
+        typeof payload.chunkIndex !== 'number' ||
+        typeof payload.sourceName !== 'string' ||
+        typeof payload.text !== 'string'
+      ) {
+        return [];
+      }
+
+      return {
+        chunkIndex: payload.chunkIndex,
+        sourceName: payload.sourceName,
+        score: point.score,
+        text: payload.text,
+      };
     });
   }
 
