@@ -8,7 +8,10 @@ import { AppModule } from '../src/app.module';
 import { ObjectStorageService } from '../src/files/storage/object-storage.service';
 import { VirusScanService } from '../src/files/virus-scan.service';
 import { PrismaService } from '../src/prisma/prisma-service';
-import { RabbitMqPublisher } from '../src/queue/rabbitmq.publisher';
+import { OutboxService } from '../src/outbox/outbox.service';
+import { DocumentProcessingPublisher } from '../src/queue/document-processing/publisher';
+import { QdrantVectorStoreService } from '../src/rag/core/qdrant-vector-store.service';
+import { RagStatusEventsConsumer } from '../src/rag/realtime/rag-status-events.consumer';
 
 jest.setTimeout(30000);
 
@@ -44,10 +47,16 @@ describe('GraphQL chat API (e2e)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
-      .overrideProvider(RabbitMqPublisher)
+      .overrideProvider(OutboxService)
       .useValue({
-        publishFileProcessingJob: jest.fn(),
+        enqueue: jest.fn(),
       })
+      .overrideProvider(DocumentProcessingPublisher)
+      .useValue({})
+      .overrideProvider(QdrantVectorStoreService)
+      .useValue({})
+      .overrideProvider(RagStatusEventsConsumer)
+      .useValue({})
       .overrideProvider(ObjectStorageService)
       .useValue({
         putObject: jest.fn(),

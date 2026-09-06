@@ -11,6 +11,7 @@ import { MessagesModule } from './messages/messages.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { AuthModule } from './auth/auth.module';
 import { FilesModule } from './files/files.module';
+import { RagRealtimeModule } from './rag/realtime/rag-realtime.module';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { GraphQLModule } from '@nestjs/graphql';
 import { Request } from 'express';
@@ -33,6 +34,7 @@ import { Request } from 'express';
     OrganizationsModule,
     AuthModule,
     FilesModule,
+    RagRealtimeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

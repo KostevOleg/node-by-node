@@ -26,4 +26,16 @@ describe('prismaErrorHandler', () => {
       error.stack,
     );
   });
+
+  it('retries once when Postgres closes the connection', async () => {
+    const operation = jest
+      .fn<() => Promise<string>>()
+      .mockRejectedValueOnce(new Error('Server has closed the connection.'))
+      .mockResolvedValueOnce('ok');
+
+    await expect(prismaErrorHandler(operation)).resolves.toBe('ok');
+
+    expect(operation).toHaveBeenCalledTimes(2);
+    expect(loggerErrorSpy).not.toHaveBeenCalled();
+  });
 });

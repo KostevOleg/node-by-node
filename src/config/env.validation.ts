@@ -26,4 +26,9 @@ export const validationSchema = Joi.object({
   CLAMAV_HOST: Joi.string().required(),
   CLAMAV_PORT: Joi.number().port().required(),
   CLAMAV_TIMEOUT_MS: Joi.number().integer().positive().default(10000),
+  QDRANT_URL: Joi.string().uri().required(),
+  QDRANT_COLLECTION: Joi.string().required(),
+  OPENAI_API_KEY: Joi.string().required(),
+  OPENAI_EMBEDDING_MODEL: Joi.string().required(),
+  OPENAI_CHAT_MODEL: Joi.string().required(),
 });

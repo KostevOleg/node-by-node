@@ -1,8 +1,12 @@
 import { PrismaService } from 'src/prisma/prisma-service';
-import { RabbitMqPublisher } from 'src/queue/rabbitmq.publisher';
+import { OutboxService } from 'src/outbox/outbox.service';
+import {
+  DOCUMENT_PROCESSING_EXCHANGE,
+  SALES_PROCESSING_ROUTING_KEY,
+} from 'src/queue/document-processing/constants';
 import { FileProcessingProducer } from './file-processing.producer';
 
-const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockPrismaFn = () => jest.fn<Promise<unknown>, unknown[]>();
 
 const prismaService = {
   fileProcessingJob: {
@@ -10,15 +14,19 @@ const prismaService = {
   },
 };
 
-const rabbitMqPublisher = {
-  publishFileProcessingJob: jest.fn(),
+const outboxService = {
+  enqueue: jest.fn<Promise<void>, unknown[]>(),
 };
 
 describe('FileProcessingProducer', () => {
-  it('creates a processing job and publishes it to RabbitMQ', async () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('creates a processing job and enqueues an outbox message', async () => {
     const service = new FileProcessingProducer(
       prismaService as unknown as PrismaService,
-      rabbitMqPublisher as unknown as RabbitMqPublisher,
+      outboxService as unknown as OutboxService,
     );
 
     const file = {
@@ -42,12 +50,19 @@ describe('FileProcessingProducer', () => {
         correlationId: expect.any(String) as string,
       },
     });
-    expect(rabbitMqPublisher.publishFileProcessingJob).toHaveBeenCalledWith({
-      jobId: job.id,
-      fileId: file.id,
-      organizationId: file.organizationId,
-      storageKey: file.storageKey,
-      correlationId: job.correlationId,
-    });
+    expect(outboxService.enqueue).toHaveBeenCalledWith(
+      {
+        exchange: DOCUMENT_PROCESSING_EXCHANGE,
+        routingKey: SALES_PROCESSING_ROUTING_KEY,
+        payload: {
+          jobId: job.id,
+          fileId: file.id,
+          organizationId: file.organizationId,
+          storageKey: file.storageKey,
+          correlationId: job.correlationId,
+        },
+      },
+      prismaService,
+    );
   });
 });
