@@ -23,7 +23,7 @@ import {
 import { fileTypeFromBuffer } from 'file-type';
 import { VirusScanService } from './virus-scan.service';
 import { FileProcessingProducer } from 'src/file-processing/file-processing.producer';
-import { RagIngestionProducer } from 'src/rag/rag-ingestion.producer';
+import { RagIngestionProducer } from 'src/rag/ingestion/rag-ingestion.producer';
 
 type UploadFileOptions = {
   processSales?: boolean;

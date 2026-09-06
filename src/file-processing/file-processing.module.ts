@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
-import { DocumentProcessingQueueModule } from 'src/queue/document-processing/module';
+import { OutboxModule } from 'src/outbox/outbox.module';
+import { PrismaModule } from 'src/prisma/prisma-module';
 import { FileProcessingProducer } from './file-processing.producer';
 
 @Module({
-  imports: [DocumentProcessingQueueModule],
+  imports: [OutboxModule, PrismaModule],
   providers: [FileProcessingProducer],
   exports: [FileProcessingProducer],
 })

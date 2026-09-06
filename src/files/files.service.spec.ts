@@ -13,6 +13,7 @@ import { FilesService } from './files.service';
 import { ObjectStorageService } from './storage/object-storage.service';
 import { VirusScanService } from './virus-scan.service';
 import { FileProcessingProducer } from 'src/file-processing/file-processing.producer';
+import { RagIngestionProducer } from 'src/rag/ingestion/rag-ingestion.producer';
 
 jest.mock('file-type', () => ({
   fileTypeFromBuffer: jest.fn(),
@@ -45,6 +46,10 @@ const virusScanService = {
 
 const fileProcessingProducer = {
   enqueueFileProcessingJob: mockPrismaFn(),
+};
+
+const ragIngestionProducer = {
+  enqueueRagIngestionJob: mockPrismaFn(),
 };
 
 describe('FilesService', () => {
@@ -90,6 +95,7 @@ describe('FilesService', () => {
       objectStorageService as unknown as ObjectStorageService,
       virusScanService as unknown as VirusScanService,
       fileProcessingProducer as unknown as FileProcessingProducer,
+      ragIngestionProducer as unknown as RagIngestionProducer,
     );
     jest.mocked(fileTypeFromBuffer).mockResolvedValue({
       ext: 'pdf',

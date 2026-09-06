@@ -13,10 +13,17 @@ import { AccessTokenGuard } from '../src/auth/access-token.guard';
 import { AppModule } from '../src/app.module';
 import { ObjectStorageService } from '../src/files/storage/object-storage.service';
 import { PrismaService } from '../src/prisma/prisma-service';
-import { RabbitMqPublisher } from '../src/queue/sales/rabbitmq.publisher';
 import { VirusScanService } from '../src/files/virus-scan.service';
+import { OutboxService } from '../src/outbox/outbox.service';
+import {
+  DOCUMENT_PROCESSING_EXCHANGE,
+  SALES_PROCESSING_ROUTING_KEY,
+} from '../src/queue/document-processing/constants';
+import { DocumentProcessingPublisher } from '../src/queue/document-processing/publisher';
+import { QdrantVectorStoreService } from '../src/rag/core/qdrant-vector-store.service';
+import { RagStatusEventsConsumer } from '../src/rag/realtime/rag-status-events.consumer';
 
-const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockPrismaFn = () => jest.fn<Promise<unknown>, unknown[]>();
 
 type PrismaServiceMock = {
   $transaction: (
@@ -66,8 +73,8 @@ describe('File processing upload (e2e)', () => {
   const virusScanService = {
     assertClean: mockPrismaFn(),
   };
-  const rabbitMqPublisher = {
-    publishFileProcessingJob: jest.fn(),
+  const outboxService = {
+    enqueue: jest.fn(),
   };
 
   beforeAll(async () => {
@@ -82,8 +89,14 @@ describe('File processing upload (e2e)', () => {
       .useValue(objectStorageService)
       .overrideProvider(VirusScanService)
       .useValue(virusScanService)
-      .overrideProvider(RabbitMqPublisher)
-      .useValue(rabbitMqPublisher)
+      .overrideProvider(OutboxService)
+      .useValue(outboxService)
+      .overrideProvider(DocumentProcessingPublisher)
+      .useValue({})
+      .overrideProvider(QdrantVectorStoreService)
+      .useValue({})
+      .overrideProvider(RagStatusEventsConsumer)
+      .useValue({})
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -112,7 +125,7 @@ describe('File processing upload (e2e)', () => {
     await app?.close();
   });
 
-  it('uploads an .xlsx file, creates a processing job, and publishes it', async () => {
+  it('uploads an .xlsx file, creates a processing job, and enqueues it', async () => {
     const fileRecord = {
       id: 'd53072db-7166-4369-a454-bb8d35d6d15d',
       organizationId: user.organizationId,
@@ -167,12 +180,19 @@ describe('File processing upload (e2e)', () => {
         correlationId: expect.any(String) as string,
       },
     });
-    expect(rabbitMqPublisher.publishFileProcessingJob).toHaveBeenCalledWith({
-      jobId: job.id,
-      fileId: fileRecord.id,
-      organizationId: user.organizationId,
-      storageKey: fileRecord.storageKey,
-      correlationId: job.correlationId,
-    });
+    expect(outboxService.enqueue).toHaveBeenCalledWith(
+      {
+        exchange: DOCUMENT_PROCESSING_EXCHANGE,
+        routingKey: SALES_PROCESSING_ROUTING_KEY,
+        payload: {
+          jobId: job.id,
+          fileId: fileRecord.id,
+          organizationId: user.organizationId,
+          storageKey: fileRecord.storageKey,
+          correlationId: job.correlationId,
+        },
+      },
+      prismaService,
+    );
   });
 });

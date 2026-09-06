@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { DocumentProcessingPublisher } from 'src/queue/document-processing/publisher';
 import { PrismaService } from 'src/prisma/prisma-service';
+import { OutboxService } from 'src/outbox/outbox.service';
+import {
+  DOCUMENT_PROCESSING_EXCHANGE,
+  SALES_PROCESSING_ROUTING_KEY,
+} from 'src/queue/document-processing/constants';
 
 type FileProcessingSourceFile = {
   id: string;
@@ -16,7 +20,7 @@ type FileProcessingPrismaClient = PrismaService | Prisma.TransactionClient;
 export class FileProcessingProducer {
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly documentProcessingPublisher: DocumentProcessingPublisher,
+    private readonly outboxService: OutboxService,
   ) {}
 
   async enqueueFileProcessingJob(
@@ -33,12 +37,19 @@ export class FileProcessingProducer {
       },
     });
 
-    this.documentProcessingPublisher.publishFileProcessingJob({
-      jobId: job.id,
-      fileId: file.id,
-      organizationId: file.organizationId,
-      storageKey: file.storageKey,
-      correlationId: job.correlationId,
-    });
+    await this.outboxService.enqueue(
+      {
+        exchange: DOCUMENT_PROCESSING_EXCHANGE,
+        routingKey: SALES_PROCESSING_ROUTING_KEY,
+        payload: {
+          jobId: job.id,
+          fileId: file.id,
+          organizationId: file.organizationId,
+          storageKey: file.storageKey,
+          correlationId: job.correlationId,
+        },
+      },
+      prisma,
+    );
   }
 }
