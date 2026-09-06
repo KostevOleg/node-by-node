@@ -21,11 +21,12 @@ import {
   RAG_INGESTION_RETRY_2H_ROUTING_KEY,
 } from 'src/queue/document-processing/constants';
 import { assertDocumentProcessingTopology } from 'src/queue/document-processing/topology';
-import { DocumentParserService } from 'src/rag/document-parser.service';
-import { RagIngestionJobMessage } from 'src/rag/messages/rag-ingestion-job.message';
-import { TextChunkerService } from 'src/rag/text-chunker.service';
-import { EmbeddingService } from 'src/rag/embedding.service';
-import { QdrantVectorStoreService } from 'src/rag/qdrant-vector-store.service';
+import { DocumentParserService } from 'src/rag/core/document-parser.service';
+import { RagIngestionJobMessage } from 'src/rag/ingestion/messages/rag-ingestion-job.message';
+import { TextChunkerService } from 'src/rag/core/text-chunker.service';
+import { EmbeddingService } from 'src/rag/core/embedding.service';
+import { QdrantVectorStoreService } from 'src/rag/core/qdrant-vector-store.service';
+import { DocumentProcessingPublisher } from 'src/queue/document-processing/publisher';
 
 @Injectable()
 export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
@@ -41,6 +42,7 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
     private readonly textChunkerService: TextChunkerService,
     private readonly embeddingService: EmbeddingService,
     private readonly qdrantStoreService: QdrantVectorStoreService,
+    private readonly documentProcessingPublisher: DocumentProcessingPublisher,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -92,7 +94,18 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      await this.markJobAsProcessing(jobMessage);
+      const startedAt = await this.markJobAsProcessing(jobMessage);
+      this.publishStatusChanged({
+        fileId: job.fileId,
+        organizationId: job.organizationId,
+        status: FileProcessingStatus.PROCESSING,
+        chunksCount: job.chunksCount,
+        errorMessage: job.errorMessage,
+        startedAt,
+        completedAt: job.completedAt,
+        failedAt: job.failedAt,
+        correlationId: jobMessage.correlationId,
+      });
 
       const object = await this.objectStorageService.getObject(
         job.file.storageKey,
@@ -114,6 +127,7 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
         extension: job.file.extension,
       });
 
+      const completedAt = new Date();
       const result = await this.prismaService.ragIngestionJob.updateMany({
         where: {
           id: jobMessage.jobId,
@@ -124,7 +138,7 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
           chunksCount: chunks.length,
           embeddingModel: this.embeddingService.model,
           qdrantCollection: this.qdrantStoreService.collection,
-          completedAt: new Date(),
+          completedAt,
         },
       });
 
@@ -133,6 +147,18 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
           `RAG ingestion job ${jobMessage.jobId} is not processing`,
         );
       }
+
+      this.publishStatusChanged({
+        fileId: job.fileId,
+        organizationId: job.organizationId,
+        status: FileProcessingStatus.COMPLETED,
+        chunksCount: chunks.length,
+        errorMessage: null,
+        startedAt,
+        completedAt,
+        failedAt: null,
+        correlationId: jobMessage.correlationId,
+      });
 
       this.channel.ack(message);
       this.logger.log(
@@ -193,7 +219,8 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
 
   private async markJobAsProcessing(
     message: RagIngestionJobMessage,
-  ): Promise<void> {
+  ): Promise<Date> {
+    const startedAt = new Date();
     const result = await this.prismaService.ragIngestionJob.updateMany({
       where: {
         id: message.jobId,
@@ -204,13 +231,15 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
       },
       data: {
         status: FileProcessingStatus.PROCESSING,
-        startedAt: new Date(),
+        startedAt,
       },
     });
 
     if (result.count === 0) {
       throw new Error(`RAG ingestion job ${message.jobId} is not pending`);
     }
+
+    return startedAt;
   }
 
   private async markJobAsFailed(
@@ -233,6 +262,8 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
           errorMessage,
         },
       });
+
+      await this.publishCurrentStatus(message);
     }
 
     this.logger.error(
@@ -347,6 +378,8 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
         errorMessage,
       },
     });
+
+    await this.publishCurrentStatus(message);
   }
 
   private getRetryRoutingKey(attempts: number): string {
@@ -359,5 +392,62 @@ export class RagIngestionConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     return RAG_INGESTION_RETRY_2H_ROUTING_KEY;
+  }
+
+  private publishStatusChanged(message: {
+    fileId: string;
+    organizationId: string;
+    status: FileProcessingStatus;
+    chunksCount: number | null;
+    errorMessage: string | null;
+    startedAt: Date | null;
+    completedAt: Date | null;
+    failedAt: Date | null;
+    correlationId: string;
+  }): void {
+    void this.documentProcessingPublisher
+      .publishRagIngestionStatusChanged({
+        ...message,
+        startedAt: message.startedAt?.toISOString() ?? null,
+        completedAt: message.completedAt?.toISOString() ?? null,
+        failedAt: message.failedAt?.toISOString() ?? null,
+      })
+      .catch((error: unknown) => {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+
+        this.logger.warn(
+          `Failed to publish RAG status event for file ${message.fileId}: ${errorMessage}`,
+        );
+      });
+  }
+
+  private async publishCurrentStatus(
+    message: RagIngestionJobMessage,
+  ): Promise<void> {
+    const job = await this.prismaService.ragIngestionJob.findUnique({
+      where: {
+        id: message.jobId,
+      },
+      select: {
+        fileId: true,
+        organizationId: true,
+        status: true,
+        chunksCount: true,
+        errorMessage: true,
+        startedAt: true,
+        completedAt: true,
+        failedAt: true,
+      },
+    });
+
+    if (!job) {
+      return;
+    }
+
+    this.publishStatusChanged({
+      ...job,
+      correlationId: message.correlationId,
+    });
   }
 }

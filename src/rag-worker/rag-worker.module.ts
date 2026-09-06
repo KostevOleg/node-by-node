@@ -3,7 +3,9 @@ import { ConfigModule } from '@nestjs/config';
 import { validationSchema } from 'src/config/env.validation';
 import { ObjectStorageService } from 'src/files/storage/object-storage.service';
 import { PrismaModule } from 'src/prisma/prisma-module';
-import { RagModule } from 'src/rag/rag.module';
+import { DocumentProcessingQueueModule } from 'src/queue/document-processing/module';
+import { RagProcessingModule } from 'src/rag/rag-processing.module';
+import { RagAnswerConsumer } from './rag-answer.consumer';
 import { RagIngestionConsumer } from './rag-ingestion.consumer';
 
 @Module({
@@ -12,9 +14,10 @@ import { RagIngestionConsumer } from './rag-ingestion.consumer';
       isGlobal: true,
       validationSchema,
     }),
+    DocumentProcessingQueueModule,
     PrismaModule,
-    RagModule,
+    RagProcessingModule,
   ],
-  providers: [RagIngestionConsumer, ObjectStorageService],
+  providers: [RagIngestionConsumer, RagAnswerConsumer, ObjectStorageService],
 })
 export class RagWorkerModule {}
