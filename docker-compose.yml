@@ -125,6 +125,29 @@ services:
       qdrant:
         condition: service_started
 
+  outbox-worker:
+    build:
+      context: .
+      target: production
+    command: node dist/src/outbox-worker/main.js
+    restart: on-failure
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/node_by_node
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: node_by_node
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
   postgres:
     image: postgres:16-alpine
     container_name: node_by_node_postgres
@@ -140,7 +163,8 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres -d node_by_node"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 30
+      start_period: 5m
 
   redis:
     image: redis:7-alpine
@@ -160,8 +184,8 @@ services:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
       interval: 5s
       timeout: 5s
-      retries: 10
-      start_period: 10s
+      retries: 60
+      start_period: 10m
 
   qdrant:
     image: qdrant/qdrant:latest

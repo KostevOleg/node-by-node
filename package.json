@@ -17,6 +17,8 @@
     "start:worker:dev": "ts-node -r tsconfig-paths/register src/file-processing-worker/main.ts",
     "start:rag-worker": "node dist/src/rag-worker/main.js",
     "start:rag-worker:dev": "ts-node -r tsconfig-paths/register src/rag-worker/main.ts",
+    "start:outbox-worker": "node dist/src/outbox-worker/main.js",
+    "start:outbox-worker:dev": "ts-node -r tsconfig-paths/register src/outbox-worker/main.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "lint:check": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "prisma:generate": "prisma generate",
