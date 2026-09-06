@@ -15,7 +15,7 @@ import { ChatRealtimeService } from './websocket/chat-realtime.service';
 
 const mockPrismaFn = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockTransactionFn = () =>
-  jest.fn<(callback: (tx: unknown) => unknown) => unknown>();
+  jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
 const prismaService = {
   $transaction: mockTransactionFn(),
@@ -27,6 +27,7 @@ const prismaService = {
     delete: mockPrismaFn(),
     findFirst: mockPrismaFn(),
     findMany: mockPrismaFn(),
+    findUniqueOrThrow: mockPrismaFn(),
   },
   conversationParticipant: {
     createMany: mockPrismaFn(),
@@ -121,8 +122,10 @@ describe('ConversationsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    prismaService.$transaction.mockImplementation((callback) =>
-      callback(prismaService),
+    prismaService.$transaction.mockImplementation((callback: unknown) =>
+      Promise.resolve(
+        (callback as (tx: typeof prismaService) => unknown)(prismaService),
+      ),
     );
     service = new ConversationsService(
       prismaService as unknown as PrismaService,
@@ -136,8 +139,7 @@ describe('ConversationsService', () => {
     prismaService.conversation.findFirst.mockResolvedValue(null);
     prismaService.conversation.create.mockResolvedValue(chat);
     prismaService.message.create.mockResolvedValue(message);
-    prismaService.conversation.findUniqueOrThrow =
-      mockPrismaFn().mockResolvedValue(chat);
+    prismaService.conversation.findUniqueOrThrow.mockResolvedValue(chat);
 
     await expect(
       service.createChat(user, {
