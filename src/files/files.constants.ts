@@ -9,6 +9,7 @@ export const ALLOWED_FILE_EXTENSIONS = new Set([
   '.jpeg',
   '.txt',
   '.xlsx',
+  '.md',
 ]);
 
 export const ALLOWED_FILE_MIME_TYPES = new Set([
@@ -19,6 +20,7 @@ export const ALLOWED_FILE_MIME_TYPES = new Set([
   'image/png',
   'image/jpeg',
   'text/plain',
+  'text/markdown',
 ]);
 
 export const FILE_EXTENSION_MIME_TYPES = new Map<string, string[]>([
@@ -36,6 +38,7 @@ export const FILE_EXTENSION_MIME_TYPES = new Map<string, string[]>([
   ['.jpg', ['image/jpeg']],
   ['.jpeg', ['image/jpeg']],
   ['.txt', ['text/plain']],
+  ['.md', ['text/plain', 'text/markdown']],
 ]);
 
 export const DANGEROUS_FILE_EXTENSIONS = new Set([

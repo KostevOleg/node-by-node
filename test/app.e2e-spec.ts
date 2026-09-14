@@ -3,6 +3,11 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
+import { ObjectStorageService } from '../src/files/storage/object-storage.service';
+import { DocumentProcessingPublisher } from '../src/queue/document-processing/publisher';
+import { RagAnswerRpcClient } from '../src/rag/answering/rag-answer-rpc.client';
+import { QdrantVectorStoreService } from '../src/rag/core/qdrant-vector-store.service';
+import { RagStatusEventsConsumer } from '../src/rag/realtime/rag-status-events.consumer';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
@@ -10,7 +15,18 @@ describe('AppController (e2e)', () => {
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(ObjectStorageService)
+      .useValue({})
+      .overrideProvider(DocumentProcessingPublisher)
+      .useValue({})
+      .overrideProvider(QdrantVectorStoreService)
+      .useValue({})
+      .overrideProvider(RagStatusEventsConsumer)
+      .useValue({})
+      .overrideProvider(RagAnswerRpcClient)
+      .useValue({ ask: jest.fn() })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();

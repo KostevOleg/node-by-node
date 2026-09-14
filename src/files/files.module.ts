@@ -5,10 +5,17 @@ import { ObjectStorageService } from './storage/object-storage.service';
 import { VirusScanService } from './virus-scan.service';
 import { AuthModule } from 'src/auth/auth.module';
 import { FileProcessingModule } from 'src/file-processing/file-processing.module';
+import { RagModule } from 'src/rag/rag.module';
+import { QdrantVectorStoreService } from 'src/rag/core/qdrant-vector-store.service';
 
 @Module({
-  imports: [AuthModule, FileProcessingModule],
+  imports: [AuthModule, FileProcessingModule, RagModule],
   controllers: [FilesController],
-  providers: [FilesService, ObjectStorageService, VirusScanService],
+  providers: [
+    FilesService,
+    ObjectStorageService,
+    VirusScanService,
+    QdrantVectorStoreService,
+  ],
 })
 export class FilesModule {}

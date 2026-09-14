@@ -6,9 +6,9 @@ import { ObjectStorageService } from 'src/files/storage/object-storage.service';
 import { FileProcessingJobMessage } from 'src/file-processing/messages/file-processing-job.message';
 import { PrismaService } from 'src/prisma/prisma-service';
 import {
-  RABBITMQ_DLQ_ROUTING_KEY,
-  RABBITMQ_EXCHANGE,
-} from 'src/queue/rabbitmq.constants';
+  DOCUMENT_PROCESSING_EXCHANGE,
+  SALES_PROCESSING_DLQ_ROUTING_KEY,
+} from 'src/queue/document-processing/constants';
 import { FileProcessingConsumer } from './file-processing.consumer';
 import { SalesExcelParserService } from './sales-excel-parser.service';
 
@@ -266,8 +266,8 @@ describe('FileProcessingConsumer', () => {
       },
     );
     expect(channel.publish).toHaveBeenCalledWith(
-      RABBITMQ_EXCHANGE,
-      RABBITMQ_DLQ_ROUTING_KEY,
+      DOCUMENT_PROCESSING_EXCHANGE,
+      SALES_PROCESSING_DLQ_ROUTING_KEY,
       message.content,
       {
         persistent: true,

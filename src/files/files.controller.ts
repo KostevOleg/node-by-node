@@ -89,6 +89,7 @@ export class FilesController {
   ) {
     return this.filesService.uploadFile(req.user, file, {
       processSales: query.processSales ?? false,
+      processRag: query.processRag ?? false,
     });
   }
 

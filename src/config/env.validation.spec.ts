@@ -23,6 +23,11 @@ describe('env validation schema', () => {
     S3_FORCE_PATH_STYLE: true,
     CLAMAV_HOST: 'localhost',
     CLAMAV_PORT: 3310,
+    QDRANT_URL: 'http://localhost:6333',
+    QDRANT_COLLECTION: 'rag_documents',
+    OPENAI_API_KEY: 'change-me',
+    OPENAI_EMBEDDING_MODEL: 'text-embedding-3-small',
+    OPENAI_CHAT_MODEL: 'gpt-5.4-mini',
   };
 
   const validateEnv = (env: Record<string, unknown>) =>

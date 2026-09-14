@@ -13,6 +13,8 @@ import { FilesService } from './files.service';
 import { ObjectStorageService } from './storage/object-storage.service';
 import { VirusScanService } from './virus-scan.service';
 import { FileProcessingProducer } from 'src/file-processing/file-processing.producer';
+import { RagIngestionProducer } from 'src/rag/ingestion/rag-ingestion.producer';
+import { QdrantVectorStoreService } from 'src/rag/core/qdrant-vector-store.service';
 
 jest.mock('file-type', () => ({
   fileTypeFromBuffer: jest.fn(),
@@ -45,6 +47,14 @@ const virusScanService = {
 
 const fileProcessingProducer = {
   enqueueFileProcessingJob: mockPrismaFn(),
+};
+
+const ragIngestionProducer = {
+  enqueueRagIngestionJob: mockPrismaFn(),
+};
+
+const qdrantVectorStoreService = {
+  deleteChunksByFileId: mockPrismaFn(),
 };
 
 describe('FilesService', () => {
@@ -90,6 +100,8 @@ describe('FilesService', () => {
       objectStorageService as unknown as ObjectStorageService,
       virusScanService as unknown as VirusScanService,
       fileProcessingProducer as unknown as FileProcessingProducer,
+      ragIngestionProducer as unknown as RagIngestionProducer,
+      qdrantVectorStoreService as unknown as QdrantVectorStoreService,
     );
     jest.mocked(fileTypeFromBuffer).mockResolvedValue({
       ext: 'pdf',
@@ -371,10 +383,18 @@ describe('FilesService', () => {
     expect(objectStorageService.deleteObject).toHaveBeenCalledWith(
       fileRecord.storageKey,
     );
+    expect(qdrantVectorStoreService.deleteChunksByFileId).toHaveBeenCalledWith(
+      fileRecord.id,
+    );
     expect(
       objectStorageService.deleteObject.mock.invocationCallOrder[0],
     ).toBeLessThan(
       prismaService.organizationFile.update.mock.invocationCallOrder[0],
+    );
+    expect(
+      prismaService.organizationFile.update.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      qdrantVectorStoreService.deleteChunksByFileId.mock.invocationCallOrder[0],
     );
   });
 });

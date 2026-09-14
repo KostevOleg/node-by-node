@@ -11,8 +11,8 @@ SET
 FROM (
     SELECT
         "conversationId",
-        MIN("userId") AS "firstUserId",
-        MAX("userId") AS "secondUserId"
+        MIN("userId"::text)::uuid AS "firstUserId",
+        MAX("userId"::text)::uuid AS "secondUserId"
     FROM "ConversationParticipant"
     GROUP BY "conversationId"
     HAVING COUNT(DISTINCT "userId") = 2

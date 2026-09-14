@@ -11,12 +11,12 @@ import amqp, { Channel, ChannelModel, ConsumeMessage } from 'amqplib';
 import { FileProcessingJobMessage } from 'src/file-processing/messages/file-processing-job.message';
 import { PrismaService } from 'src/prisma/prisma-service';
 import {
-  RABBITMQ_DLQ_ROUTING_KEY,
-  RABBITMQ_EXCHANGE,
-  RABBITMQ_MAX_PROCESSING_ATTEMPTS,
-  RABBITMQ_QUEUE,
-} from 'src/queue/rabbitmq.constants';
-import { assertFileProcessingTopology } from 'src/queue/rabbitmq.topology';
+  DOCUMENT_PROCESSING_EXCHANGE,
+  SALES_PROCESSING_DLQ_ROUTING_KEY,
+  SALES_PROCESSING_MAX_ATTEMPTS,
+  SALES_PROCESSING_QUEUE,
+} from 'src/queue/document-processing/constants';
+import { assertDocumentProcessingTopology } from 'src/queue/document-processing/topology';
 import { ObjectStorageService } from 'src/files/storage/object-storage.service';
 import { SalesExcelParserService } from './sales-excel-parser.service';
 import { Readable } from 'node:stream';
@@ -40,10 +40,10 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
     this.connection = await amqp.connect(url);
     this.channel = await this.connection.createChannel();
 
-    await assertFileProcessingTopology(this.channel);
+    await assertDocumentProcessingTopology(this.channel);
 
     await this.channel.prefetch(1);
-    await this.channel.consume(RABBITMQ_QUEUE, (message) => {
+    await this.channel.consume(SALES_PROCESSING_QUEUE, (message) => {
       void this.handleMessage(message);
     });
 
@@ -225,14 +225,14 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     const attempts = await this.incrementJobAttempts(jobMessage, error);
-    if (attempts < RABBITMQ_MAX_PROCESSING_ATTEMPTS) {
+    if (attempts < SALES_PROCESSING_MAX_ATTEMPTS) {
       await this.markJobAsPending(jobMessage, error);
       this.channel?.nack(message, false, false);
       return;
     }
 
     await this.markJobAsFailed(jobMessage, error);
-    this.publishMessage(message, RABBITMQ_DLQ_ROUTING_KEY);
+    this.publishMessage(message, SALES_PROCESSING_DLQ_ROUTING_KEY);
     this.channel?.ack(message);
   }
 
@@ -275,11 +275,16 @@ export class FileProcessingConsumer implements OnModuleInit, OnModuleDestroy {
         ? message.properties.correlationId
         : undefined;
 
-    this.channel?.publish(RABBITMQ_EXCHANGE, routingKey, message.content, {
-      persistent: true,
-      contentType,
-      correlationId,
-    });
+    this.channel?.publish(
+      DOCUMENT_PROCESSING_EXCHANGE,
+      routingKey,
+      message.content,
+      {
+        persistent: true,
+        contentType,
+        correlationId,
+      },
+    );
   }
   private async markJobAsPending(
     message: FileProcessingJobMessage | undefined,

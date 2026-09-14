@@ -70,58 +70,64 @@ export class ConversationsService {
 
     try {
       const chat = await prismaErrorHandler(() =>
-        this.prismaService.$transaction(async (tx) => {
-          const conversation = await tx.conversation.create({
-            data: {
-              organizationId: user.organizationId,
-              userId: user.id,
-              firstUserId,
-              secondUserId,
-            },
-          });
-          await tx.conversationParticipant.createMany({
-            data: [
-              {
-                conversationId: conversation.id,
+        this.prismaService.$transaction(
+          async (tx) => {
+            const conversation = await tx.conversation.create({
+              data: {
+                organizationId: user.organizationId,
                 userId: user.id,
+                firstUserId,
+                secondUserId,
               },
-              {
+            });
+            await tx.conversationParticipant.createMany({
+              data: [
+                {
+                  conversationId: conversation.id,
+                  userId: user.id,
+                },
+                {
+                  conversationId: conversation.id,
+                  userId: participant.id,
+                },
+              ],
+            });
+            await tx.message.create({
+              data: {
                 conversationId: conversation.id,
-                userId: participant.id,
+                senderId: user.id,
+                content: input.firstMessage,
+                sender: MessageSender.USER,
+                tokenCount: input.firstMessage.trim().split(/\s+/).length,
+                status: MessageStatus.SENT,
               },
-            ],
-          });
-          await tx.message.create({
-            data: {
-              conversationId: conversation.id,
-              senderId: user.id,
-              content: input.firstMessage,
-              sender: MessageSender.USER,
-              tokenCount: input.firstMessage.trim().split(/\s+/).length,
-              status: MessageStatus.SENT,
-            },
-          });
+            });
 
-          return tx.conversation.findUniqueOrThrow({
-            where: {
-              id: conversation.id,
-            },
-            include: {
-              participants: {
-                include: {
-                  user: true,
+            return tx.conversation.findUniqueOrThrow({
+              where: {
+                id: conversation.id,
+              },
+              include: {
+                participants: {
+                  include: {
+                    user: true,
+                  },
+                },
+                messages: {
+                  where: {
+                    deletedAt: null,
+                  },
+                  orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+                  take: 1,
                 },
               },
-              messages: {
-                where: {
-                  deletedAt: null,
-                },
-                orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-                take: 1,
-              },
-            },
-          });
-        }),
+            });
+          },
+          {
+            maxWait: 10000,
+            timeout: 15000,
+          },
+        ),
       );
 
       const chatObject = this.chatMapper.toChatObject(chat);
