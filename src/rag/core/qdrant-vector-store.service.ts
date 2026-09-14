@@ -131,12 +131,7 @@ export class QdrantVectorStoreService {
   }
 
   private async ensureCollection(vectorSize: number): Promise<void> {
-    const collections = await this.client.getCollections();
-    const exists = collections.collections.some(
-      (collection) => collection.name === this.collection,
-    );
-
-    if (exists) {
+    if (await this.collectionExists()) {
       return;
     }
 
@@ -148,7 +143,11 @@ export class QdrantVectorStoreService {
     });
   }
 
-  private async deleteChunksByFileId(fileId: string): Promise<void> {
+  async deleteChunksByFileId(fileId: string): Promise<void> {
+    if (!(await this.collectionExists())) {
+      return;
+    }
+
     await this.client.delete(this.collection, {
       filter: {
         must: [
@@ -161,6 +160,14 @@ export class QdrantVectorStoreService {
         ],
       },
     });
+  }
+
+  private async collectionExists(): Promise<boolean> {
+    const collections = await this.client.getCollections();
+
+    return collections.collections.some(
+      (collection) => collection.name === this.collection,
+    );
   }
 
   private createPointId(fileId: string, chunkIndex: number): string {

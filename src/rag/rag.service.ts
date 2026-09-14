@@ -14,12 +14,14 @@ import {
 } from './dto/rag-file-response.dto';
 import { serialize } from 'src/common/utils/serialize';
 import { RagAnswerRpcClient } from './answering/rag-answer-rpc.client';
+import { RagIngestionProducer } from './ingestion/rag-ingestion.producer';
 
 @Injectable()
 export class RagService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly ragAnswerRpcClient: RagAnswerRpcClient,
+    private readonly ragIngestionProducer: RagIngestionProducer,
   ) {}
 
   async assertCanAccessFile(
@@ -150,5 +152,65 @@ export class RagService {
     }
 
     return this.ragAnswerRpcClient.ask(user.organizationId, fileId, question);
+  }
+
+  async retryIngestion(
+    user: AuthenticatedUser,
+    fileId: string,
+  ): Promise<RagIngestionStatusResponseDto> {
+    const file = await this.findAccessibleFile(user, fileId);
+
+    if (!['.txt', '.md', '.pdf'].includes(file.extension)) {
+      throw new BadRequestException(
+        'RAG processing requires a .txt, .md, or .pdf file',
+      );
+    }
+
+    const job = await this.prismaService.ragIngestionJob.findUnique({
+      where: { fileId },
+    });
+
+    if (!job) {
+      throw new NotFoundException('RAG ingestion job not found');
+    }
+
+    if (job.status !== FileProcessingStatus.FAILED) {
+      throw new BadRequestException(
+        'Only failed RAG ingestion jobs can be retried',
+      );
+    }
+
+    const updatedJob = await this.prismaService.$transaction(async (tx) => {
+      const updatedJob = await tx.ragIngestionJob.update({
+        where: { id: job.id },
+        data: {
+          status: FileProcessingStatus.PENDING,
+          startedAt: null,
+          attempts: 0,
+          chunksCount: 0,
+          errorMessage: null,
+          failedAt: null,
+          completedAt: null,
+        },
+      });
+
+      await this.ragIngestionProducer.enqueueExistingRagIngestionJob(
+        file,
+        updatedJob,
+        tx,
+      );
+
+      return updatedJob;
+    });
+
+    return {
+      fileId,
+      status: updatedJob.status,
+      chunksCount: updatedJob.chunksCount,
+      startedAt: updatedJob.startedAt,
+      completedAt: updatedJob.completedAt,
+      failedAt: updatedJob.failedAt,
+      errorMessage: updatedJob.errorMessage,
+    };
   }
 }

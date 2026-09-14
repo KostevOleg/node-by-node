@@ -10,6 +10,7 @@ import { VirusScanService } from '../src/files/virus-scan.service';
 import { PrismaService } from '../src/prisma/prisma-service';
 import { OutboxService } from '../src/outbox/outbox.service';
 import { DocumentProcessingPublisher } from '../src/queue/document-processing/publisher';
+import { RagAnswerRpcClient } from '../src/rag/answering/rag-answer-rpc.client';
 import { QdrantVectorStoreService } from '../src/rag/core/qdrant-vector-store.service';
 import { RagStatusEventsConsumer } from '../src/rag/realtime/rag-status-events.consumer';
 
@@ -57,6 +58,8 @@ describe('GraphQL chat API (e2e)', () => {
       .useValue({})
       .overrideProvider(RagStatusEventsConsumer)
       .useValue({})
+      .overrideProvider(RagAnswerRpcClient)
+      .useValue({ ask: jest.fn() })
       .overrideProvider(ObjectStorageService)
       .useValue({
         putObject: jest.fn(),

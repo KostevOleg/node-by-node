@@ -52,4 +52,25 @@ export class RagIngestionProducer {
       prisma,
     );
   }
+
+  async enqueueExistingRagIngestionJob(
+    file: RagIngestionSourceFile,
+    job: { id: string; correlationId: string },
+    prisma: RagIngestionPrismaClient = this.prismaService,
+  ): Promise<void> {
+    await this.outboxService.enqueue(
+      {
+        exchange: DOCUMENT_PROCESSING_EXCHANGE,
+        routingKey: RAG_INGESTION_ROUTING_KEY,
+        payload: {
+          jobId: job.id,
+          fileId: file.id,
+          organizationId: file.organizationId,
+          storageKey: file.storageKey,
+          correlationId: job.correlationId,
+        },
+      },
+      prisma,
+    );
+  }
 }

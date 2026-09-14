@@ -89,4 +89,24 @@ export class RagController {
   ): Promise<RagAnswerResponseDto> {
     return this.ragService.answerQuestion(req.user, fileId, dto.question);
   }
+
+  @Post('files/:fileId/retry')
+  @ApiOperation({ summary: 'Retry RAG ingestion for a file' })
+  @ApiParam({ name: 'fileId', description: 'File UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'RAG ingestion retry scheduled.',
+    type: RagIngestionStatusResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid request.' })
+  @ApiResponse({
+    status: 404,
+    description: 'File or RAG ingestion job not found.',
+  })
+  retryFileIngestion(
+    @Req() req: AuthenticatedRequest,
+    @Param('fileId', ParseUUIDPipe) fileId: string,
+  ) {
+    return this.ragService.retryIngestion(req.user, fileId);
+  }
 }

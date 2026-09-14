@@ -20,6 +20,7 @@ import {
   SALES_PROCESSING_ROUTING_KEY,
 } from '../src/queue/document-processing/constants';
 import { DocumentProcessingPublisher } from '../src/queue/document-processing/publisher';
+import { RagAnswerRpcClient } from '../src/rag/answering/rag-answer-rpc.client';
 import { QdrantVectorStoreService } from '../src/rag/core/qdrant-vector-store.service';
 import { RagStatusEventsConsumer } from '../src/rag/realtime/rag-status-events.consumer';
 
@@ -97,6 +98,8 @@ describe('File processing upload (e2e)', () => {
       .useValue({})
       .overrideProvider(RagStatusEventsConsumer)
       .useValue({})
+      .overrideProvider(RagAnswerRpcClient)
+      .useValue({ ask: jest.fn() })
       .compile();
 
     app = moduleFixture.createNestApplication();

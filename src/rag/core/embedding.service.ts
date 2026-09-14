@@ -2,6 +2,8 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 
+const EMBEDDING_BATCH_SIZE = 200;
+
 @Injectable()
 export class EmbeddingService {
   private readonly client: OpenAI;
@@ -25,11 +27,22 @@ export class EmbeddingService {
         'Embedding input must not contain empty texts',
       );
     }
-    const vectors = await this.client.embeddings.create({
-      model: this.model,
-      input: normalizedTexts,
-    });
+    const embeddings: number[][] = [];
 
-    return vectors.data.map((item) => item.embedding);
+    for (
+      let start = 0;
+      start < normalizedTexts.length;
+      start += EMBEDDING_BATCH_SIZE
+    ) {
+      const batch = normalizedTexts.slice(start, start + EMBEDDING_BATCH_SIZE);
+      const vectors = await this.client.embeddings.create({
+        model: this.model,
+        input: batch,
+      });
+
+      embeddings.push(...vectors.data.map((item) => item.embedding));
+    }
+
+    return embeddings;
   }
 }

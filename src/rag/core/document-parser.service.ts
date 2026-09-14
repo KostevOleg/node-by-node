@@ -46,7 +46,12 @@ export class DocumentParserService {
   }
 
   private normalizeText(text: string): string {
-    const normalized = text.replace(/\s+/g, ' ').trim();
+    const normalized = text
+      .replace(/\r\n?/g, '\n')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/[ \t]*\n[ \t]*/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
 
     if (!normalized) {
       throw new BadRequestException('Document text is empty');

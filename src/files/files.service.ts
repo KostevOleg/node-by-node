@@ -24,6 +24,7 @@ import { fileTypeFromBuffer } from 'file-type';
 import { VirusScanService } from './virus-scan.service';
 import { FileProcessingProducer } from 'src/file-processing/file-processing.producer';
 import { RagIngestionProducer } from 'src/rag/ingestion/rag-ingestion.producer';
+import { QdrantVectorStoreService } from 'src/rag/core/qdrant-vector-store.service';
 
 type UploadFileOptions = {
   processSales?: boolean;
@@ -38,6 +39,7 @@ export class FilesService {
     private readonly virusService: VirusScanService,
     private readonly fileProcessingProducer: FileProcessingProducer,
     private readonly ragProducer: RagIngestionProducer,
+    private readonly qdrantVectorStoreService: QdrantVectorStoreService,
   ) {}
   private buildStorageKey(
     organizationId: string,
@@ -337,5 +339,7 @@ export class FilesService {
         },
       }),
     );
+
+    await this.qdrantVectorStoreService.deleteChunksByFileId(file.id);
   }
 }

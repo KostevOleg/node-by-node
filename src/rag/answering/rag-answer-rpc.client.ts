@@ -18,7 +18,7 @@ import { RagAnswerResponseDto } from '../dto/ask-rag-question.dto';
 import { RagAnswerRequestMessage } from './messages/rag-answer-request.message';
 import { RagAnswerResponseMessage } from './messages/rag-answer-response.message';
 
-const RAG_ANSWER_TIMEOUT_MS = 30_000;
+const RAG_ANSWER_TIMEOUT_MS = 60_000;
 
 @Injectable()
 export class RagAnswerRpcClient implements OnModuleInit, OnModuleDestroy {
